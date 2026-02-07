@@ -1,0 +1,42 @@
+track: profiler  # baseline | gpt5 | profiler
+max_iterations: 50
+checkpoint_interval: 10
+parallel_evaluations: 1
+
+llm:
+  api_base: "https://api.openai.com/v1"
+  models:
+    - name: "gpt-4"
+      weight: 1.0
+  temperature: 0.5
+  max_tokens: 3000
+  timeout: 180
+
+database:
+  population_size: 30
+  num_islands: 2
+  migration_interval: 10
+  feature_dimensions:
+    - "ops_per_sec"
+    - "p99_latency_us"
+    - "bcoz_max_speedup"
+
+evaluator:
+  timeout: 300
+  max_retries: 1
+
+prompt:
+  system_message: |
+    You are a C++ performance optimization expert.
+    Your task is to modify RocksDB WAL write path based on BCOZ causal profiling.
+
+    Provide a SEARCH/REPLACE diff that applies to db/db_impl/db_impl_write.cc.
+    Focus on reducing the causal bottleneck without breaking durability.
+
+    Constraints:
+    - C++17 only
+    - Preserve ACID semantics and WAL durability guarantees
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+log_level: "INFO"
