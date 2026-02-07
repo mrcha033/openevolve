@@ -35,7 +35,7 @@ This document reflects the evaluator-driven integration used by `examples/yunmin
 │  │  │ causal_fitness(                │ │                        │
 │  │  │   throughput,                  │ │                        │
 │  │  │   bcoz_speedup_max,            │ │                        │
-│  │  │   bperf_offcpu_ratio,          │ │                        │
+│  │  │   (optional profiler metrics), │ │                        │
 │  │  │   compile_success,             │ │                        │
 │  │  │   test_pass                    │ │                        │
 │  │  │ )                              │ │                        │

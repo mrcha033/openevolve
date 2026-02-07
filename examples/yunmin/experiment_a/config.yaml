@@ -1,4 +1,4 @@
-# Track selection is via AI_OPT_TRACK env var (baseline|gpt5|profiler).
+# Track selection is via AI_OPT_TRACK env var (baseline|gpt5|profiler|gpt5_profiler).
 # LLM api_base and model are overridden by run_track.sh CLI flags.
 max_iterations: 50
 checkpoint_interval: 10
@@ -20,7 +20,6 @@ database:
   feature_dimensions:
     - "ops_per_sec"
     - "p99_latency_us"
-    - "bcoz_max_speedup"
 
 evaluator:
   timeout: 300

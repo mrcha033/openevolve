@@ -16,7 +16,7 @@ The RocksDB integration in OpenEvolve uses evaluator-driven Causal Feedback loop
 - **Heuristics:** Any additional guidance is encoded in per-experiment prompt blocks inside `examples/yunmin/experiment_*/config.yaml`.
 
 ### 3. Configuration (`examples/yunmin/experiment_*/config.yaml`)
-- **Feature Dimensions:** Current MAP-Elites coordinates use `ops_per_sec`, `p99_latency_us`, `bcoz_max_speedup`, and `bperf_offcpu_ratio`.
+- **Feature Dimensions:** Current MAP-Elites coordinates use `ops_per_sec` and `p99_latency_us`. Profiler outputs are logged and can be used in prompts/fitness, but are not MAP-Elites dimensions.
 - **Profiling Defaults:** Per-experiment defaults are set in each evaluator (`DEFAULT_RUN_BCOZ`/`DEFAULT_RUN_BPERF`) and can be overridden via env vars.
 
 ## Current Blockers (2026-02-04)

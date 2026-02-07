@@ -51,6 +51,12 @@ export AI_OPT_MODEL_PROFILER="local-model-name"
 AI_OPT_TRACK=profiler ../run_track.sh experiment_a
 ```
 
+**Track D (GPT-5 + Profiler):**
+```bash
+export OPENAI_API_KEY="sk-..."
+AI_OPT_TRACK=gpt5_profiler ../run_track.sh experiment_a
+```
+
 ## 4. Evaluation Metrics
 The evaluator (`evaluator.py`) calculates a **Combined Fitness Score**:
 $$ Fitness = 0.3 \times Throughput + 0.2 \times Latency + 0.3 \times \text{CausalRealization} $$

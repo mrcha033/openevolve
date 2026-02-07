@@ -10,12 +10,12 @@ OpenEvolve is bottleneck-aware by injecting **Causal Profiling (BCOZ)** and **Bl
 - **Causal Signal (BCOZ):** Evaluators optionally run BCOZ and inject predicted speedup locations via `openevolve.aiopt.bcoz_parser.generate_mutation_context`.
 
 ### B. Evolutionary Mechanism
-- **Multi-Objective MAP-Elites:** Feature dimensions are `ops_per_sec`, `p99_latency_us`, `bcoz_max_speedup`, `bperf_offcpu_ratio` (see `examples/yunmin/experiment_*/config.yaml`).
+- **Multi-Objective MAP-Elites:** Feature dimensions are `ops_per_sec` and `p99_latency_us` (see `examples/yunmin/experiment_*/config.yaml`).
 - **Prompting:** The built-in `diff_user` template in `openevolve/prompt/templates.py` is used; per-experiment guidance is in `examples/yunmin/experiment_*/config.yaml`.
 
 ### C. RocksDB Experiments
 - **Current Status:** You are using 8 binary methodologies as coordinates.
-- **Current Coordinates:** MAP-Elites uses performance/profiler metrics, not hardware-pressure stats.
+- **Current Coordinates:** MAP-Elites uses performance metrics only; profiler metrics are not used as feature dimensions.
 
 ## 3. Immediate Next Steps
 1. **Tool Verification:** Confirm bperf/BCOZ availability on target hardware (Linux perf/PMU access required).

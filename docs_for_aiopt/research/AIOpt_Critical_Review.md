@@ -15,7 +15,7 @@ The goal is to transform `OpenEvolve` into a "Scientific Method" agent that:
 ## 3. Planned Experiments
 
 ### Experiment A: The L0-Compaction Bottleneck (Hardware-Metric Driven)
-*   **Hypothesis:** MAP-Elites can find distinct optimization strategies for different "pressure zones" (High L0 File Count vs High Write Stall %).
+*   **Hypothesis:** MAP-Elites can find distinct optimization strategies for different "pressure zones" (High L0 File Count vs High Write Stall %). (Not implemented in current configs.)
 *   **Profile Signal:** `db_bench` telemetry + BCOZ signal on compaction threads.
 *   **Action:** Vary the methodology prompts based on the *current* pressure state of the database.
 
