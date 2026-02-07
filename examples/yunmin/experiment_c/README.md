@@ -41,8 +41,24 @@ We run a **single experiment scaffold** with a `track` switch:
 - **gpt5:** GPT-5, **no profiler feedback** (scalar reward only).
 - **profiler:** local model + **BCOZ/bperf** feedback.
 
-Set `track` in `config.yaml` or pass `AI_OPT_TRACK`.
-If `track != profiler`, set `AI_OPT_RUN_BCOZ=0` and `AI_OPT_RUN_BPERF=0`.
+### One-Command Runner (No per-track config edits)
+Use the shared runner (auto-applies model + profiler toggles):
+```bash
+# Example (baseline)
+AI_OPT_TRACK=baseline \
+AI_OPT_MODEL_BASELINE="<local-model-id>" \
+examples/yunmin/run_track.sh experiment_c
+
+# Example (profiler)
+AI_OPT_TRACK=profiler \
+AI_OPT_MODEL_PROFILER="<local-model-id>" \
+examples/yunmin/run_track.sh experiment_c
+```
+
+The runner sets:
+- Model via `--primary-model`
+- API base via `--api-base`
+- `AI_OPT_RUN_BCOZ` / `AI_OPT_RUN_BPERF` automatically
 
 ## Notes
 This experiment may require C++20 or a coroutine library (folly/cppcoro).
