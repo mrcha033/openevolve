@@ -252,6 +252,9 @@ def evaluate(program_path: str) -> dict:
             "ops_per_sec": metrics["ops_per_sec"],
             "p99_latency_us": metrics["p99_latency_us"],
         }
+        # Always provide feature dimensions even if profilers are disabled.
+        response["bcoz_max_speedup"] = Baseline.BCOZ_MAX_SPEEDUP
+        response["bperf_offcpu_ratio"] = Baseline.OFF_CPU_RATIO
         if bcoz_result:
             response["bcoz_max_speedup"] = bcoz_result.max_speedup
             response["bcoz_max_speedup_location"] = bcoz_result.max_speedup_location
