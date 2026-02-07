@@ -1,57 +1,57 @@
-# Experiment B: Lock Contention Reduction (Profiler-in-the-Loop)
+# Experiment B: Lock Contention Reduction
 
-## Goal
-Reduce `DBImpl::mutex_` contention using **BCOZ + bperf** feedback to guide
-code-level refactoring. The evaluator integrates both profilers into fitness.
+## 1. Scientific Objective
+**Goal:** Reduce mutex contention in the critical Write Path (`DBImpl::mutex_`).
+**Hypothesis:** High-concurrency workloads spend significant time blocked on locks. `bperf` (off-CPU profiling) can precisely identify the hottest critical sections. An LLM can optimize these by **splitting locks**, **reducing critical section scope**, or **using lock-free atomics**.
 
-## Intended Target
-- RocksDB source tree
-- Primary file: `db/db_impl/db_impl_write.cc`
+**Target File:** `db/db_impl/db_impl_write.cc` (Focus on `mutex_` usage)
+**Profiling Signal:**
+*   **Off-CPU Ratio:** `bperf` metric (Time spent sleeping/blocked).
+*   **Causal Speedup:** `BCOZ` speedup on mutex acquisition lines.
 
-## Required Environment Variables
-- `AI_OPT_ROCKSDB_PATH`: path to RocksDB checkout
-- `AI_OPT_BUILD_CMD`: build command (e.g., `cmake --build build -j`)
-- `AI_OPT_BENCH_CMD`: benchmark command (e.g., `./build/db_bench --benchmarks=...`)
+## 2. Experimental Protocol (4-Track)
 
-Optional:
-- `AI_OPT_TARGET_FILE` or `AI_OPT_TARGET_FILES`
-- `AI_OPT_BENCH_BIN` / `AI_OPT_BENCH_ARGS`: explicit binary + args for profilers
-- `AI_OPT_METRICS_JSON`: parse metrics from a JSON file
-- `AI_OPT_RUN_BCOZ`: `1` to enable, `0` to disable (default: on)
-- `AI_OPT_RUN_BPERF`: `1` to enable, `0` to disable (default: on)
-- `AI_OPT_BCOZ_DURATION`: seconds (default `60`)
-- `AI_OPT_BPERF_DURATION`: seconds (default `30`)
+We compare **Vision** (Profiler) vs. **Intelligence** (Model Scale).
 
-## Expected Metrics
-- `combined_score`: throughput + latency + causal signals
-- `bcoz_max_speedup`
-- `bperf_offcpu_ratio`
+| Track | Model | Profiler Feedback | Goal |
+| :--- | :--- | :--- | :--- |
+| **A (Baseline)** | Local (e.g., Qwen/DeepSeek) | **None** (Blind) | Establish performance floor. |
+| **B (Competitor)**| **GPT-5** (SOTA) | **None** (Blind) | Can pure intelligence solve systems problems? |
+| **C (Method)** | Local (e.g., Qwen/DeepSeek) | **bperf + BCOZ** | Does causal vision beat blind intelligence? |
+| **D (Ultimate)** | **GPT-5** (SOTA) | **bperf + BCOZ** | The theoretical upper bound. |
 
-## 3-Track Protocol (Shared)
-We run a **single experiment scaffold** with a `track` switch:
-- **baseline:** local model, **no profiler feedback** (scalar reward only).
-- **gpt5:** GPT-5, **no profiler feedback** (scalar reward only).
-- **profiler:** local model + **BCOZ/bperf** feedback.
+## 3. How to Run
 
-### One-Command Runner (No per-track config edits)
-Use the shared runner (auto-applies model + profiler toggles):
+Use the shared runner script `../run_track.sh` from the parent directory.
+
+### Prerequisites
+*   **Env:** `AI_OPT_ROCKSDB_PATH` must point to your RocksDB source.
+*   **Profiler:** For Tracks C/D, `bperf` (eBPF) and `coz` must be installed.
+*   **LLM:** `vllm` or `ollama` running locally, or `OPENAI_API_KEY` set.
+
+### Commands
+
+**Track A (Baseline):**
 ```bash
-# Example (baseline)
-AI_OPT_TRACK=baseline \
-AI_OPT_MODEL_BASELINE="<local-model-id>" \
-examples/yunmin/run_track.sh experiment_b
-
-# Example (profiler)
-AI_OPT_TRACK=profiler \
-AI_OPT_MODEL_PROFILER="<local-model-id>" \
-examples/yunmin/run_track.sh experiment_b
+export AI_OPT_MODEL_BASELINE="local-model-name"
+AI_OPT_TRACK=baseline ../run_track.sh experiment_b
 ```
 
-The runner sets:
-- Model via `--primary-model`
-- API base via `--api-base`
-- `AI_OPT_RUN_BCOZ` / `AI_OPT_RUN_BPERF` automatically
+**Track B (GPT-5):**
+```bash
+export OPENAI_API_KEY="sk-..."
+AI_OPT_TRACK=gpt5 ../run_track.sh experiment_b
+```
 
-## Notes
-This scaffold assumes **real RocksDB** with profilers available.
-If you want a local synthetic test, use `examples/yunmin/local_prototype/lock_hotspot`.
+**Track C (Profiler-Guided):**
+```bash
+# Must run on Linux with bperf (root/sudo often required for eBPF)
+export AI_OPT_MODEL_PROFILER="local-model-name"
+AI_OPT_TRACK=profiler ../run_track.sh experiment_b
+```
+
+## 4. Evaluation Metrics
+The evaluator (`evaluator.py`) calculates a **Combined Fitness Score**:
+$$ Fitness = 0.3 \times Throughput + 0.2 \times Latency + 0.3 \times \text{OffCpuReduction} $$
+
+*   **Off-CPU Reduction:** In Track C/D, we heavily reward mutations that lower the `off_cpu_ratio` reported by `bperf`.

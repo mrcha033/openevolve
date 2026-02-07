@@ -1,65 +1,59 @@
-# Experiment C: Coroutinization (bperf Context Switch Reduction)
+# Experiment C: Compaction Latency Hiding (Pipelining)
 
-## Goal
-Use bperf off-CPU analysis to find synchronization-heavy paths and introduce
-coroutine-based async patterns to reduce context-switch overhead.
+## 1. Scientific Objective
+**Goal:** Mask I/O latency in the Compaction Job via local software pipelining.
+**Hypothesis:** Compaction jobs spend significant time blocked on I/O (reading SST blocks). Instead of a viral architectural rewrite (Coroutines), we can implement **local software pipelining** (prefetching the next block while processing the current one) to hide this latency.
 
-## Intended Target
-- RocksDB source tree
-- Primary files:
-  - `db/compaction/compaction_job.cc`
-  - `db/flush_job.cc`
-  - `util/threadpool_imp.cc`
+**Target File:** `db/compaction/compaction_job.cc` (Internal logic only).
+**Constraint:** **NO** changes to function signatures or `ThreadPool` (Viral refactoring is forbidden).
 
-## How This Scaffolding Is Used
-This experiment is designed for external server execution with bperf available.
-The evaluator is **profiler-in-the-loop**:
-1. Apply the mutation diff to the real RocksDB source tree.
-2. Build and benchmark (`db_bench`).
-3. Run bperf and fold off-CPU ratio into fitness.
+**Profiling Signal:**
+*   **Off-CPU Ratio:** `bperf` metric (Time spent waiting for I/O).
+*   **Throughput:** `ops/sec`.
 
-## Required Environment Variables
-- `AI_OPT_ROCKSDB_PATH`: path to RocksDB checkout
-- `AI_OPT_BUILD_CMD`: build command (e.g., `cmake --build build -j`)
-- `AI_OPT_BENCH_CMD`: benchmark command (e.g., `./build/db_bench --benchmarks=...`)
+## 2. Experimental Protocol (4-Track)
 
-Optional:
-- `AI_OPT_TARGET_FILE` or `AI_OPT_TARGET_FILES`
-- `AI_OPT_BENCH_BIN` / `AI_OPT_BENCH_ARGS`: explicit binary + args for profilers
-- `AI_OPT_METRICS_JSON`: parse metrics from a JSON file
-- `AI_OPT_RUN_BPERF`: `1` to enable, `0` to disable (default: on)
-- `AI_OPT_BPERF_DURATION`: seconds (default `30`)
+We compare **Vision** (Profiler) vs. **Intelligence** (Model Scale).
 
-## Expected Metrics
-- `combined_score`: throughput + latency + bperf
-- `off_cpu_ratio`: reduced ratio indicates fewer context switches
-- Optional: thread pool queue depth, compaction duration
+| Track | Model | Profiler Feedback | Goal |
+| :--- | :--- | :--- | :--- |
+| **A (Baseline)** | Local (e.g., Qwen/DeepSeek) | **None** (Blind) | Establish performance floor. |
+| **B (Competitor)**| **GPT-5** (SOTA) | **None** (Blind) | Can pure intelligence solve systems problems? |
+| **C (Method)** | Local (e.g., Qwen/DeepSeek) | **bperf** | Does causal vision beat blind intelligence? |
+| **D (Ultimate)** | **GPT-5** (SOTA) | **bperf** | The theoretical upper bound. |
 
-## 3-Track Protocol (Shared)
-We run a **single experiment scaffold** with a `track` switch:
-- **baseline:** local model, **no profiler feedback** (scalar reward only).
-- **gpt5:** GPT-5, **no profiler feedback** (scalar reward only).
-- **profiler:** local model + **BCOZ/bperf** feedback.
+## 3. How to Run
 
-### One-Command Runner (No per-track config edits)
-Use the shared runner (auto-applies model + profiler toggles):
+Use the shared runner script `../run_track.sh` from the parent directory.
+
+### Prerequisites
+*   **Env:** `AI_OPT_ROCKSDB_PATH` must point to your RocksDB source.
+*   **Profiler:** For Tracks C/D, `bperf` (eBPF) must be installed.
+*   **LLM:** `vllm` or `ollama` running locally, or `OPENAI_API_KEY` set.
+
+### Commands
+
+**Track A (Baseline):**
 ```bash
-# Example (baseline)
-AI_OPT_TRACK=baseline \
-AI_OPT_MODEL_BASELINE="<local-model-id>" \
-examples/yunmin/run_track.sh experiment_c
-
-# Example (profiler)
-AI_OPT_TRACK=profiler \
-AI_OPT_MODEL_PROFILER="<local-model-id>" \
-examples/yunmin/run_track.sh experiment_c
+export AI_OPT_MODEL_BASELINE="local-model-name"
+AI_OPT_TRACK=baseline ../run_track.sh experiment_c
 ```
 
-The runner sets:
-- Model via `--primary-model`
-- API base via `--api-base`
-- `AI_OPT_RUN_BCOZ` / `AI_OPT_RUN_BPERF` automatically
+**Track B (GPT-5):**
+```bash
+export OPENAI_API_KEY="sk-..."
+AI_OPT_TRACK=gpt5 ../run_track.sh experiment_c
+```
 
-## Notes
-This experiment may require C++20 or a coroutine library (folly/cppcoro).
-Pick a single coroutine strategy to keep refactors minimal and testable.
+**Track C (Profiler-Guided):**
+```bash
+# Must run on Linux with bperf (root/sudo often required for eBPF)
+export AI_OPT_MODEL_PROFILER="local-model-name"
+AI_OPT_TRACK=profiler ../run_track.sh experiment_c
+```
+
+## 4. Evaluation Metrics
+The evaluator (`evaluator.py`) calculates a **Combined Fitness Score**:
+$$ Fitness = 0.4 \times Throughput + 0.2 \times Latency + 0.4 \times \text{OffCpuReduction} $$
+
+*   **Pipelining Success:** Successful pipelining should manifest as a **decrease in off-CPU time** (less blocking) and an **increase in CPU utilization**, leading to higher throughput.
