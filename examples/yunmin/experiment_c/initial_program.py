@@ -2,10 +2,13 @@
 MUTATION_DIFF = r"""
 <<<<<<< SEARCH
 // Example placeholder (replace with exact code from compaction_job.cc)
-// thread_pool_.Schedule(&CompactionJob::Run, this);
+// status = input->Next();
+// ProcessKeyValue(input->key(), input->value());
 =======
-// Example mutation (replace with real logic)
-// coroutine_scheduler_.Schedule(&CompactionJob::Run, this);
+// Example mutation: prefetch next block while processing current
+// input->PrepareNextBlock();          // async prefetch hint
+// status = input->Next();
+// ProcessKeyValue(input->key(), input->value());
 >>>>>>> REPLACE
 """
 # EVOLVE-BLOCK-END
@@ -14,11 +17,13 @@ MUTATION_DIFF = r"""
 def get_static_context() -> dict:
     return {
         "experiment": "C",
-        "goal": "Reduce context-switch overhead via coroutinization",
+        "goal": "Reduce compaction I/O stalls via prefetching and amortized locking",
         "target_file": "db/compaction/compaction_job.cc",
         "constraints": [
-            "C++20 coroutines preferred (or folly::coro with C++17)",
-            "Provide fallback path if coroutines disabled",
-            "Minimize invasive refactors",
+            "Stay local to compaction_job.cc — no scheduler rewrites",
+            "Prefetching: overlap next-block I/O with current-block processing",
+            "Amortized locking: batch mutex acquisitions to reduce per-key overhead",
+            "Preserve correctness — compaction output must remain identical",
+            "No new dependencies; use existing ReadOptions / BlockBasedTable APIs",
         ],
     }

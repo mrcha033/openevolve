@@ -151,6 +151,40 @@ def run_bperf(
     return parse_bperf_report(report_file)
 
 
+def generate_mutation_context(result: BperfResult, top_n: int = 3) -> str:
+    """
+    Generate LLM prompt context from bperf off-CPU results.
+
+    This is injected into the mutation prompt to guide the LLM
+    toward reducing blocking and contention hotspots.
+    """
+    if not result.has_significant_blocking:
+        return "No significant off-CPU blocking detected by bperf."
+
+    lines = [
+        "## Off-CPU Analysis (bperf)",
+        "",
+        "The program spends significant time blocked (off-CPU).",
+        "Reducing contention at these call sites will improve throughput:",
+        "",
+        f"**Off-CPU ratio:** {result.off_cpu_ratio:.1%} "
+        f"({result.off_cpu_samples}/{result.total_samples} samples)",
+        "",
+    ]
+
+    for i, blocker in enumerate(result.top_blockers[:top_n], 1):
+        lines.append(
+            f"{i}. **{blocker.function}** — {blocker.percentage:.1f}% of blocked time"
+        )
+
+    lines.extend([
+        "",
+        "Focus your mutation on reducing lock contention and blocking at the top sites."
+    ])
+
+    return '\n'.join(lines)
+
+
 if __name__ == "__main__":
     # Test with mock data
     import tempfile

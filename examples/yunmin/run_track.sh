@@ -36,8 +36,14 @@ case "$TRACK" in
     export AI_OPT_RUN_BCOZ=${AI_OPT_RUN_BCOZ:-1}
     export AI_OPT_RUN_BPERF=${AI_OPT_RUN_BPERF:-1}
     ;;
+  gpt5_profiler)
+    MODEL="${AI_OPT_MODEL_GPT5:-gpt-5}"
+    API_BASE="${AI_OPT_API_BASE_GPT5:-https://api.openai.com/v1}"
+    export AI_OPT_RUN_BCOZ=${AI_OPT_RUN_BCOZ:-1}
+    export AI_OPT_RUN_BPERF=${AI_OPT_RUN_BPERF:-1}
+    ;;
   *)
-    echo "Unknown AI_OPT_TRACK: $TRACK (expected baseline|gpt5|profiler)"
+    echo "Unknown AI_OPT_TRACK: $TRACK (expected baseline|gpt5|profiler|gpt5_profiler)"
     exit 1
     ;;
 esac
@@ -52,4 +58,23 @@ CONFIG="$EXP_DIR/config.yaml"
 INIT="$EXP_DIR/initial_program.py"
 EVAL="$EXP_DIR/evaluator.py"
 
-python -m openevolve.cli "$INIT" "$EVAL" --config "$CONFIG" --api-base "$API_BASE" --primary-model "$MODEL"
+EXTRA_ARGS=()
+
+if [[ -n "${AI_OPT_SEED:-}" ]]; then
+  SEED_DIR="${EXP_DIR}/${TRACK}_seed${AI_OPT_SEED}"
+  mkdir -p "$SEED_DIR"
+
+  # Create a seed-specific config with random_seed set
+  SEED_CONFIG="$SEED_DIR/config.yaml"
+  cp "$CONFIG" "$SEED_CONFIG"
+  if grep -q "^random_seed:" "$SEED_CONFIG"; then
+    sed -i.bak "s/^random_seed:.*/random_seed: ${AI_OPT_SEED}/" "$SEED_CONFIG" && rm -f "${SEED_CONFIG}.bak"
+  else
+    echo "random_seed: ${AI_OPT_SEED}" >> "$SEED_CONFIG"
+  fi
+
+  CONFIG="$SEED_CONFIG"
+  EXTRA_ARGS+=(--output "$SEED_DIR/output")
+fi
+
+python -m openevolve.cli "$INIT" "$EVAL" --config "$CONFIG" --api-base "$API_BASE" --primary-model "$MODEL" "${EXTRA_ARGS[@]}"

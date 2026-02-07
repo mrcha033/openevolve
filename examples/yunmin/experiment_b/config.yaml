@@ -1,12 +1,13 @@
-track: profiler  # baseline | gpt5 | profiler
+# Track selection is via AI_OPT_TRACK env var (baseline|gpt5|profiler).
+# LLM api_base and model are overridden by run_track.sh CLI flags.
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
 
 llm:
-  api_base: "https://api.openai.com/v1"
+  api_base: "http://127.0.0.1:8000/v1"  # default; overridden by --api-base
   models:
-    - name: "gpt-4"
+    - name: "local-model"  # default; overridden by --primary-model
       weight: 1.0
   temperature: 0.5
   max_tokens: 3000

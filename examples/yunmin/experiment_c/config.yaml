@@ -1,12 +1,13 @@
-track: profiler  # baseline | gpt5 | profiler
+# Track selection is via AI_OPT_TRACK env var (baseline|gpt5|profiler).
+# LLM api_base and model are overridden by run_track.sh CLI flags.
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
 
 llm:
-  api_base: "https://api.openai.com/v1"
+  api_base: "http://127.0.0.1:8000/v1"  # default; overridden by --api-base
   models:
-    - name: "gpt-4"
+    - name: "local-model"  # default; overridden by --primary-model
       weight: 1.0
   temperature: 0.5
   max_tokens: 3000
@@ -27,15 +28,24 @@ evaluator:
 
 prompt:
   system_message: |
-    You are a C++ async systems expert.
-    Your task is to reduce context-switch overhead using coroutine-based patterns.
+    You are a C++ performance engineer specializing in storage-engine internals.
+    Your task is to reduce compaction latency in RocksDB by hiding I/O stalls
+    and reducing lock contention inside db/compaction/compaction_job.cc.
 
-    Provide a SEARCH/REPLACE diff that applies to compaction/flush scheduling.
-    Focus on minimal, safe coroutinization.
+    Two primary strategies (use one or both):
+    1. **Prefetching / pipelining**: overlap reading the next SST data block with
+       processing the current one. Use ReadOptions::readahead_size, explicit
+       Prefetch() calls, or manual double-buffering.
+    2. **Amortized locking**: batch per-key mutex acquisitions (e.g., accumulate
+       a small buffer of output KVs before acquiring the write lock once).
+
+    Provide a SEARCH/REPLACE diff that applies to compaction_job.cc.
+    Stay local — do not rewrite the thread-pool scheduler or add new files.
 
     Constraints:
-    - C++20 coroutines preferred (or folly::coro with C++17)
-    - Preserve correctness and fallback behavior
+    - Compaction output must remain byte-identical (correctness first)
+    - No new external dependencies
+    - Prefer changes that the profiler can validate (fewer blocking samples)
   num_top_programs: 3
   num_diverse_programs: 2
 

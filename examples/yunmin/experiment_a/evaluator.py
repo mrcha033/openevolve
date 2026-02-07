@@ -2,12 +2,26 @@ import importlib.util
 import json
 import os
 import shlex
-import sys
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 import subprocess
 
 from openevolve.utils.code_utils import apply_diff
+from openevolve.aiopt.fitness import Baseline, MutationResult, causal_fitness, fast_fitness
+from openevolve.evaluation_result import EvaluationResult
+
+try:
+    from openevolve.aiopt.bcoz_parser import run_bcoz, generate_mutation_context as bcoz_context
+except Exception:
+    run_bcoz = None
+    bcoz_context = None
+
+try:
+    from openevolve.aiopt.bperf_parser import run_bperf, generate_mutation_context as bperf_context
+except Exception:
+    run_bperf = None
+    bperf_context = None
 
 
 EXPERIMENT_NAME = "experiment_a"
@@ -17,9 +31,8 @@ DEFAULT_RUN_BPERF = False
 
 ROOT = Path(__file__).resolve().parent
 BASELINE_FILE = ROOT / "baseline.json"
-from openevolve.aiopt.bcoz_parser import run_bcoz  # noqa: E402
-from openevolve.aiopt.bperf_parser import run_bperf  # noqa: E402
-from openevolve.aiopt.fitness import Baseline, MutationResult, causal_fitness, fast_fitness  # noqa: E402
+
+BUILD_TIMEOUT = 600  # 10 minutes
 
 
 def _load_program(program_path: str):
@@ -147,8 +160,7 @@ def evaluate(program_path: str) -> dict:
     progress_points = os.getenv("AI_OPT_BCOZ_PROGRESS_POINTS")
     progress_list = [p.strip() for p in progress_points.split(",")] if progress_points else []
 
-    applied_path = None
-    original_text = None
+    applied: list[tuple[Path, str]] = []  # (path, original_text) for rollback
 
     try:
         for path in target_files:
@@ -160,10 +172,9 @@ def evaluate(program_path: str) -> dict:
             updated = apply_diff(original_text, diff_text)
             if updated != original_text:
                 path.write_text(updated, encoding="utf-8")
-                applied_path = path
-                break
+                applied.append((path, original_text))
 
-        if applied_path is None:
+        if not applied:
             return {"combined_score": 0.0, "error": "Diff did not apply to any target file."}
 
         if build_cmd:
@@ -173,6 +184,7 @@ def evaluate(program_path: str) -> dict:
                 cwd=rocksb_path,
                 capture_output=True,
                 text=True,
+                timeout=BUILD_TIMEOUT,
             )
             if build_result.returncode != 0:
                 return {
@@ -197,12 +209,14 @@ def evaluate(program_path: str) -> dict:
         bcoz_result = None
         bperf_result = None
 
+        profiler_dir = Path(tempfile.mkdtemp(prefix="aiopt_"))
+
         if run_bcoz_enabled:
             bcoz_result = run_bcoz(
                 bin_path,
                 args=args,
                 duration_sec=bcoz_duration,
-                output_dir=Path("/tmp"),
+                output_dir=profiler_dir,
                 progress_points=progress_list,
             )
 
@@ -211,7 +225,7 @@ def evaluate(program_path: str) -> dict:
                 bin_path,
                 args=args,
                 duration_sec=bperf_duration,
-                output_dir=Path("/tmp"),
+                output_dir=profiler_dir,
             )
 
         result = MutationResult(
@@ -237,11 +251,19 @@ def evaluate(program_path: str) -> dict:
         if bperf_result:
             response["bperf_offcpu_ratio"] = bperf_result.off_cpu_ratio
 
+        artifacts = {}
+        if bcoz_result and bcoz_context:
+            artifacts["profiler_bcoz"] = bcoz_context(bcoz_result)
+        if bperf_result and bperf_context:
+            artifacts["profiler_bperf"] = bperf_context(bperf_result)
+
+        if artifacts:
+            return EvaluationResult(metrics=response, artifacts=artifacts)
         return response
 
     except Exception as exc:
         return {"combined_score": 0.0, "error": f"{EXPERIMENT_NAME} failed: {exc}"}
 
     finally:
-        if applied_path and original_text is not None:
-            applied_path.write_text(original_text, encoding="utf-8")
+        for path, original_text in applied:
+            path.write_text(original_text, encoding="utf-8")
