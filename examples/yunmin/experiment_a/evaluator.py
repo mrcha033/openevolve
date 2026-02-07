@@ -17,18 +17,9 @@ DEFAULT_RUN_BPERF = False
 
 ROOT = Path(__file__).resolve().parent
 BASELINE_FILE = ROOT / "baseline.json"
-DOCS_SRC = ROOT.parents[2] / "docs_for_aiopt" / "src"
-
-sys.path.insert(0, str(DOCS_SRC))
-try:
-    from bcoz_parser import run_bcoz  # noqa: E402
-except Exception:
-    run_bcoz = None  # type: ignore
-try:
-    from bperf_parser import run_bperf  # noqa: E402
-except Exception:
-    run_bperf = None  # type: ignore
-from fitness import Baseline, MutationResult, causal_fitness, fast_fitness  # noqa: E402
+from openevolve.aiopt.bcoz_parser import run_bcoz  # noqa: E402
+from openevolve.aiopt.bperf_parser import run_bperf  # noqa: E402
+from openevolve.aiopt.fitness import Baseline, MutationResult, causal_fitness, fast_fitness  # noqa: E402
 
 
 def _load_program(program_path: str):
