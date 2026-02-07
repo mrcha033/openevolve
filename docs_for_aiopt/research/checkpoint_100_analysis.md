@@ -1,7 +1,8 @@
-# Technical Analysis Report: Evolutionary Optimization of GPT-Mini-C++
+# Technical Analysis Report: Evolutionary Optimization of GPT-Mini-C++ (Reference)
 **Date:** February 2, 2026
 **Subject:** Analysis of Optimization Strategies in Checkpoint 100
 **Project:** AI-Driven Systems Optimization (CSLab / AIOpt)
+**Note:** This report is a standalone reference and is not part of the current RocksDB experiment pipeline.
 
 ## 1. Executive Summary
 This report analyzes the structural and algorithmic optimizations discovered by the OpenEvolve framework during the evolutionary refinement of a GPT-Mini implementation in C++. The optimization process, reaching Checkpoint 100, yielded significant performance improvements (reaching 288.47 tokens/sec) while maintaining bit-level correctness ($MAX\_ERR < 10^{-7}$). Key optimizations include kernel fusion, memory traffic reduction, and micro-architectural loop transformations.

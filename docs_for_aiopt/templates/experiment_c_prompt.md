@@ -1,33 +1,30 @@
-# OpenEvolve Causal Mutation Prompt Template: Experiment C (Coroutinization)
+# OpenEvolve Causal Mutation Prompt Template: Experiment C (Compaction Pipelining)
 
 ## System Context
-You are a C++ Asynchronous Programming Expert. Your goal is to transform blocking RocksDB operations into coroutine-based asynchronous primitives to reduce context-switch overhead.
+You are a C++ Performance Optimization Expert. Your goal is to reduce compaction I/O stalls by adding local software pipelining (prefetching the next block while processing the current one).
 
 ## Causal Context
 - **Tool:** bperf (Off-CPU Analysis)
-- **Identified Bottleneck:** High context-switch rate during compaction/flush coordination
-- **bperf Signal:** Thread synchronization accounts for >25% of total off-CPU time
-- **Reference:** 2023 coroutine approach achieved 200-line rewrite for significant CPU savings
+- **Identified Bottleneck:** Compaction jobs are frequently blocked on SST block reads
+- **bperf Signal:** High off-CPU time during compaction block fetch/IO waits
 
 ## Target Files
 - `db/compaction/compaction_job.cc`
-- `db/flush_job.cc`
-- `util/threadpool_imp.cc`
 
 ## Mutation Objectives
-1. **Coroutine Task Wrapper:** Introduce `std::coroutine_handle` or folly/cppcoro primitives for background tasks
-2. **Awaitable I/O:** Convert blocking file I/O to awaitable operations using `io_uring` or platform async APIs
-3. **Cooperative Scheduling:** Replace explicit thread yields with coroutine suspension points
-4. **Executor Integration:** Ensure coroutines integrate with RocksDB's existing thread pool
+1. **Prefetch Next Block:** Initiate read/prefetch of the next SST block while processing the current block
+2. **Overlap I/O and CPU:** Ensure I/O waits are overlapped with CPU work wherever possible
+3. **Local Changes Only:** Keep all changes within `compaction_job.cc` and existing APIs
 
 ## Constraints
-- **Compiler Support:** Target C++20 coroutines (or folly::coro for C++17 compatibility)
-- **Backward Compatibility:** Provide fallback paths for non-coroutine builds
-- **Minimal Invasiveness:** Prefer wrapper patterns over deep refactoring
-- **Language:** C++20 preferred, C++17 with folly acceptable
+- **No Signature Changes:** Do not change public function signatures
+- **No ThreadPool Changes:** Do not modify RocksDB thread pool or scheduling logic
+- **No New Dependencies:** Use existing RocksDB `ReadOptions` / `BlockBasedTable` APIs
+- **Correctness:** Compaction output must remain identical
+- **Language:** C++17
 
 ## Output Format
 Provide the mutation in unified diff format. Include:
-1. **Architectural Rationale:** How coroutinization reduces context-switch overhead
-2. **Suspension Points:** Identify where coroutines yield control
-3. **Benchmark Plan:** How to measure context-switch reduction post-mutation
+1. **Rationale:** How prefetch/pipelining reduces compaction I/O stalls
+2. **Pipeline Points:** Where the next-block prefetch is issued and consumed
+3. **Benchmark Plan:** How to measure off-CPU reduction and throughput gains

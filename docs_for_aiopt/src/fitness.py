@@ -14,26 +14,8 @@ but specifically address the causal bottlenecks identified by profiling.
 from dataclasses import dataclass
 from typing import Optional
 
-# Import parsers (adjust path as needed)
-# from bperf_parser import BperfResult
-# from bcoz_parser import BCOZResult
-
-
-@dataclass
-class BperfResult:
-    """Stub for type hints - import from bperf_parser.py in production."""
-    total_samples: int
-    off_cpu_samples: int
-    off_cpu_ratio: float
-    top_blockers: list
-
-
-@dataclass
-class BCOZResult:
-    """Stub for type hints - import from bcoz_parser.py in production."""
-    speedup_points: list
-    max_speedup: float
-    max_speedup_location: str
+from openevolve.aiopt.bcoz_parser import BCOZResult
+from openevolve.aiopt.bperf_parser import BperfResult
 
 
 @dataclass
@@ -89,8 +71,15 @@ def causal_fitness(
     if not result.is_valid:
         return 0.0
     
-    # Normalize weights
+    # Drop weights for absent profilers and redistribute
+    if result.bcoz is None:
+        bcoz_weight = 0.0
+    if result.bperf is None:
+        bperf_weight = 0.0
+
     total_weight = throughput_weight + latency_weight + bcoz_weight + bperf_weight
+    if total_weight == 0:
+        return 0.0
     throughput_weight /= total_weight
     latency_weight /= total_weight
     bcoz_weight /= total_weight
@@ -104,7 +93,7 @@ def causal_fitness(
     
     # 3. BCOZ causal score
     # If mutation reduces max_speedup, it means it's addressing the bottleneck
-    bcoz_score = 1.0
+    bcoz_score = 0.0
     if result.bcoz is not None and result.bcoz.max_speedup > 0:
         # Score = (baseline_bottleneck - new_bottleneck) / baseline_bottleneck + 1
         # If new bottleneck is smaller, score > 1
@@ -113,17 +102,17 @@ def causal_fitness(
         bcoz_score = max(bcoz_score, 0.1)  # Floor to prevent negative
     
     # 4. Off-CPU score (lower is better)
-    bperf_score = 1.0
+    bperf_score = 0.0
     if result.bperf is not None:
         bperf_score = Baseline.OFF_CPU_RATIO / max(result.bperf.off_cpu_ratio, 0.01)
         bperf_score = min(bperf_score, 5.0)  # Cap to prevent outliers
     
     # Weighted combination
     fitness = (
-        throughput_weight * throughput_score +
-        latency_weight * latency_score +
-        bcoz_weight * bcoz_score +
-        bperf_weight * bperf_score
+        throughput_weight * throughput_score
+        + latency_weight * latency_score
+        + bcoz_weight * bcoz_score
+        + bperf_weight * bperf_score
     )
     
     return round(fitness, 4)

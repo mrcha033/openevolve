@@ -1,27 +1,28 @@
-# Causal Mutation Prompt Template: L0-Compaction Analysis
+# Causal Mutation Prompt Template: Experiment C (Compaction Pipelining)
 
 ## BCOZ Context (Input)
 - **Bottleneck Path:** `rocksdb::DBImpl::BackgroundCompaction` -> `rocksdb::DBImpl::DoCompactionWork` -> `rocksdb::CompactionJob::Run`
-- **Metric:** BCOZ identifies the synchronous I/O wait in `WriteLevel0Table` as a **12% global throughput bottleneck**.
-- **Prediction:** A 50% reduction in synchronous latency in this path results in a ~6% global throughput gain.
+- **Metric:** BCOZ identifies I/O waits in compaction block processing as a global throughput bottleneck.
+- **Prediction:** Reducing compaction I/O stalls should improve throughput and reduce off-CPU time.
 
 ## LLM Objective
-Refactor the compaction write path to use the `OpenEvolve` non-blocking primitive library (v2.1). Specifically, implement a double-buffered asynchronous write-ahead strategy for Level 0 compaction jobs.
+Implement local software pipelining in `db/compaction/compaction_job.cc`: prefetch the next SST block while processing the current block.
 
 ## Constraints
-1. **Thread Safety:** Use `folly::Future` or equivalent non-blocking primitives already present in the lab build.
-2. **Persistence:** Ensure that the completion callback validates the LSM-tree state before acknowledging the job.
-3. **No Config Changes:** Modify only the C++ logic in `db/compaction_job.cc`.
+1. **Thread Safety:** Preserve existing synchronization and correctness guarantees.
+2. **No New Dependencies:** Use existing RocksDB APIs (e.g., `ReadOptions`, block/table interfaces).
+3. **No Signature Changes:** Do not change public function signatures.
+4. **No Config Changes:** Modify only the C++ logic in `db/compaction/compaction_job.cc`.
 
 ## Mutation Prompt (Draft)
 ```text
 Role: High-Performance Systems Engineer.
 Task: Causal refactoring of RocksDB compaction write path.
-Data: BCOZ identifies 12% bottleneck in WriteLevel0Table.
+Data: BCOZ/bperf indicate compaction block I/O stalls.
 Context:
 {{SOURCE_CODE_EXTRACT}}
 
 Instructions:
-Identify the synchronous file write call. Replace it with an asynchronous double-buffering pattern.
-Ensure that {{METRIC_VERIFICATION}} is included in the test-harness feedback loop.
+Identify the block read/iteration loop. Add a prefetch of the next block while processing the current block.
+Keep changes local to compaction_job.cc and maintain identical output.
 ```

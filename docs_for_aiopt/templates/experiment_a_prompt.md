@@ -4,7 +4,7 @@
 You are a C++ Performance Optimization Expert. Your goal is to mutate the RocksDB kernel to address a specific bottleneck identified by causal profiling (BCOZ).
 
 ## Causal Context
-- **Tool:** BCOZ (Causal Profiler)
+- **Tool:** BCOZ (Causal Profiler), with optional bperf off-CPU context
 - **Identified Bottleneck:** The Write-Ahead Log (WAL) write path.
 - **Impact:** 12% global throughput bottleneck.
 - **Causal Prediction:** Converting this path to a non-blocking primitive will yield a ~10% throughput increase.

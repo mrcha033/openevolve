@@ -1,7 +1,7 @@
-# AIOpt: Profiler-in-the-Loop Architecture
+# AIOpt: Profiler-in-the-Loop Architecture (Current Implementation)
 
 ## Overview
-This document specifies the integration of BCOZ/bperf profiling into OpenEvolve's evolutionary loop as **automated fitness feedback**, not static prompts.
+This document reflects the evaluator-driven integration used by `examples/yunmin/experiment_*/evaluator.py`.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -61,7 +61,8 @@ This document specifies the integration of BCOZ/bperf profiling into OpenEvolve'
 ```python
 # bperf_parser.py
 import subprocess
-import json
+import re
+from pathlib import Path
 from dataclasses import dataclass
 
 @dataclass
@@ -71,29 +72,41 @@ class BperfResult:
     off_cpu_ratio: float
     top_blockers: list[dict]  # [{func, samples, pct}, ...]
 
-def run_bperf(binary_path: str, duration_sec: int = 30) -> BperfResult:
-    """Run bperf and parse output."""
+def run_bperf(
+    binary_path: str,
+    args: list[str] | None = None,
+    duration_sec: int = 30,
+    output_dir: Path | None = None
+) -> BperfResult:
+    """Run bperf and parse stdio report output."""
+    args = args or []
+    output_dir = output_dir or Path("/tmp")
+    data_file = output_dir / "bperf.data"
+    report_file = output_dir / "bperf_report.txt"
     cmd = [
-        "bperf", "record", "-g", "-o", "/tmp/bperf.data",
-        "--", binary_path, "--benchmarks=fillrandom", f"--duration={duration_sec}"
+        "bperf", "record", "-g", "-o", str(data_file),
+        "--", binary_path
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(cmd + args, check=True, capture_output=True)
     
     # Parse bperf report
     report = subprocess.run(
-        ["bperf", "report", "-i", "/tmp/bperf.data", "--json"],
+        ["bperf", "report", "-i", str(data_file), "--stdio"],
         capture_output=True, text=True
     )
-    data = json.loads(report.stdout)
-    
-    total = data.get("total_samples", 0)
-    offcpu = data.get("off_cpu_samples", 0)
+    report_file.write_text(report.stdout)
+    content = report.stdout
+
+    total_match = re.search(r"Total samples:\s*(\d+)", content)
+    offcpu_match = re.search(r"Off-CPU samples:\s*(\d+)", content)
+    total = int(total_match.group(1)) if total_match else 0
+    offcpu = int(offcpu_match.group(1)) if offcpu_match else 0
     
     return BperfResult(
         total_samples=total,
         off_cpu_samples=offcpu,
         off_cpu_ratio=offcpu / total if total > 0 else 0,
-        top_blockers=data.get("top_off_cpu_stacks", [])[:10]
+        top_blockers=[]  # populated by parse_bperf_report in implementation
     )
 ```
 
@@ -110,25 +123,30 @@ class BCOZResult:
     max_speedup: float
     max_speedup_location: str
 
-def run_bcoz(binary_path: str, duration_sec: int = 60) -> BCOZResult:
-    """Run BCOZ causal profiling and parse output."""
+def run_bcoz(
+    binary_path: str,
+    args: list[str] | None = None,
+    duration_sec: int = 60
+) -> BCOZResult:
+    """Run BCOZ causal profiling and parse output (args provided by evaluator)."""
+    args = args or []
     cmd = [
-        "coz", "run", "-o", "/tmp/bcoz_profile.coz",
-        "---", binary_path, "--benchmarks=fillrandom", f"--duration={duration_sec}"
+        "bcoz", "run", "-o", "/tmp/bcoz_profile.coz",
+        "---", binary_path
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(cmd + args, check=True, capture_output=True)
     
     # Parse coz profile output
     speedup_points = []
     with open("/tmp/bcoz_profile.coz", "r") as f:
         for line in f:
-            # Format: "speedup\t<file>:<line>\t<percentage>"
-            match = re.match(r"speedup\t(.+):(\d+)\t([\d.]+)", line)
+            # Format: "experiment\tselected=<file>:<line>\tspeedup=<decimal>\tduration=<samples>"
+            match = re.search(r"selected=([^:\s]+):(\d+)\s+speedup=([\d.]+)", line)
             if match:
                 speedup_points.append({
                     "file": match.group(1),
                     "line": int(match.group(2)),
-                    "speedup_pct": float(match.group(3))
+                    "speedup_pct": float(match.group(3)) * 100
                 })
     
     speedup_points.sort(key=lambda x: x["speedup_pct"], reverse=True)
@@ -186,24 +204,36 @@ def causal_fitness(result: MutationResult) -> float:
     # Latency score (lower is better, so invert)
     latency_score = BASELINE_P99 / max(result.p99_latency_us, 1)
     
+    # Drop weights for absent profilers and redistribute
+    bcoz_weight = 0.30 if result.bcoz else 0.0
+    bperf_weight = 0.20 if result.bperf else 0.0
+    total_weight = 0.30 + 0.20 + bcoz_weight + bperf_weight
+    if total_weight == 0:
+        return 0.0
+    throughput_weight = 0.30 / total_weight
+    latency_weight = 0.20 / total_weight
+    bcoz_weight /= total_weight
+    bperf_weight /= total_weight
+
     # BCOZ causal score (max speedup percentage)
-    bcoz_score = 1.0
+    bcoz_score = 0.0
     if result.bcoz and result.bcoz.max_speedup > 0:
-        # Reward mutations that reduce the max speedup potential
-        # (meaning they've already captured that optimization)
-        bcoz_score = 1.0 + (0.01 * (100 - result.bcoz.max_speedup))
+        reduction = 15.0 - result.bcoz.max_speedup
+        bcoz_score = 1.0 + (reduction / 15.0)
+        bcoz_score = max(bcoz_score, 0.1)
     
     # Off-CPU score (lower is better)
-    offcpu_score = 1.0
+    offcpu_score = 0.0
     if result.bperf:
         offcpu_score = BASELINE_OFFCPU / max(result.bperf.off_cpu_ratio, 0.01)
+        offcpu_score = min(offcpu_score, 5.0)
     
     # Weighted combination
     fitness = (
-        0.30 * throughput_score +
-        0.20 * latency_score +
-        0.30 * bcoz_score +
-        0.20 * offcpu_score
+        throughput_weight * throughput_score +
+        latency_weight * latency_score +
+        bcoz_weight * bcoz_score +
+        bperf_weight * offcpu_score
     )
     
     return round(fitness, 4)
@@ -211,13 +241,12 @@ def causal_fitness(result: MutationResult) -> float:
 
 ---
 
-### 3. OpenEvolve Integration Hook
+### 3. OpenEvolve Integration Hook (Illustrative)
 
 ```python
 # openevolve_hook.py
 """
-Integration point for OpenEvolve's evaluate() callback.
-This replaces static throughput-only evaluation with causal profiling.
+This mirrors the evaluator logic used by the experiments; the actual code lives in `examples/yunmin/experiment_*/evaluator.py`.
 """
 import subprocess
 import tempfile
@@ -290,17 +319,26 @@ def evaluate_mutation(mutation_diff: str, run_profilers: bool = True) -> Mutatio
             capture_output=True, text=True, timeout=300
         )
         throughput, p99 = parse_db_bench_output(bench_output.stdout)
+        bench_args = ["--benchmarks=fillrandom,readrandom", "--num=100000", "--threads=4"]
         
         # 5. Profiling (optional, expensive)
         bperf_result = None
         bcoz_result = None
         if run_profilers:
             try:
-                bperf_result = run_bperf(str(BUILD_DIR / "db_bench"), duration_sec=30)
+                bperf_result = run_bperf(
+                    str(BUILD_DIR / "db_bench"),
+                    args=bench_args,
+                    duration_sec=30
+                )
             except Exception:
                 pass
             try:
-                bcoz_result = run_bcoz(str(BUILD_DIR / "db_bench"), duration_sec=60)
+                bcoz_result = run_bcoz(
+                    str(BUILD_DIR / "db_bench"),
+                    args=bench_args,
+                    duration_sec=60
+                )
             except Exception:
                 pass
         

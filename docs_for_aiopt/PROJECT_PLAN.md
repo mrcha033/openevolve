@@ -17,7 +17,7 @@ Status: Blocked (SSH ProxyJump Down)
 
 ## Next Milestones
 1. [ ] Restore SSH access to `cslab-server`.
-2. [x] **Experiment B/C Prompt Templates:** Drafted Lock Contention and Coroutinization prompts (2026-02-05).
+2. [x] **Experiment B/C Prompt Templates:** Drafted Lock Contention and Compaction Pipelining prompts (2026-02-05).
 3. [x] **Experiment D Design:** Local RocksDB-Lite prototyping plan for SSH-independent validation (2026-02-05).
 4. [x] **Profiler-in-the-Loop Architecture:** Designed BCOZ/bperf integration into OpenEvolve fitness loop (2026-02-05).
 5. [x] **Core Implementation:** `bperf_parser.py`, `bcoz_parser.py`, `fitness.py` created in `src/` (2026-02-05).
@@ -34,6 +34,6 @@ Status: Blocked (SSH ProxyJump Down)
 
 ## Alternative Optimization Paths (Blocked Context)
 - **Local Simulation (RocksDB-Lite):** Prototype mutations on a scaled-down RocksDB instance on the RPi/Mac to test `OpenEvolve` logic before server deployment.
-- **Coroutinization Analysis:** Investigate the 2023 "coroutine program" approach to RocksDB (200 lines of code rewrite) as a potential mutation template for CPU optimization.
+- **Compaction Pipelining Analysis:** Investigate local software pipelining in `compaction_job.cc` (prefetch next block while processing current) as a low-risk latency-hiding mutation template.
 - **Genetic Configuration Tuning (K2vTune):** Adapt `K2vTune` (2023) genetic algorithm concepts for automated RocksDB configuration tuning in parallel with kernel mutations.
 - **TiKV Multi-Batch Integration:** Model the "Shared LSM" flow control from TiKV (2025) as a higher-level structural mutation target.

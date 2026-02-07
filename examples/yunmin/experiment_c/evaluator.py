@@ -76,24 +76,29 @@ def _parse_metrics(stdout: str, metrics_path: Optional[str]) -> dict:
                     "p99_latency_us": float(data["p99_latency_us"]),
                 }
 
-    ops = None
+    ops_candidates: list[float] = []
     p99 = None
     for line in stdout.splitlines():
-        if ops is None:
-            if "ops/sec" in line:
-                tokens = line.replace(",", " ").split()
-                for i, tok in enumerate(tokens):
-                    if "ops/sec" in tok and i > 0:
-                        try:
-                            ops = float(tokens[i - 1])
-                        except ValueError:
-                            pass
-        if p99 is None:
-            lowered = line.lower()
-            if "p99" in lowered:
-                numbers = [t for t in lowered.replace(",", " ").split() if t.replace(".", "").isdigit()]
-                if numbers:
-                    p99 = float(numbers[-1])
+        if "ops/sec" in line:
+            tokens = line.replace(",", " ").split()
+            for i, tok in enumerate(tokens):
+                if "ops/sec" in tok and i > 0:
+                    try:
+                        ops_candidates.append(float(tokens[i - 1]))
+                    except ValueError:
+                        pass
+        if p99 is None and "P99:" in line:
+            # Prefer explicit P99 from histogram output.
+            parts = line.split("P99:")
+            if len(parts) > 1:
+                tail = parts[1].strip()
+                num = tail.split()[0]
+                try:
+                    p99 = float(num)
+                except ValueError:
+                    pass
+
+    ops = max(ops_candidates) if ops_candidates else None
 
     if ops is None or p99 is None:
         raise RuntimeError("Failed to parse ops/sec or p99 from benchmark output.")

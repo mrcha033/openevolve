@@ -24,10 +24,10 @@ The goal is to transform `OpenEvolve` into a "Scientific Method" agent that:
 *   **Profile Signal:** BCOZ speedup curves showing >10% gains on specific mutex lock-paths.
 *   **Action:** Prompt the model to specifically refactor the identified C++ lock paths to reduce critical section duration.
 
-### Experiment C: Coroutine-Based CPU Optimization
-*   **Hypothesis:** Introducing asynchronous task primitives can mitigate the overhead of context switching identified in `bperf` traces.
-*   **Profile Signal:** High `off-cpu` time in `bperf` associated with thread synchronization.
-*   **Action:** Evaluate if evolutionary mutations can successfully "coroutinize" targeted RocksDB internal tasks.
+### Experiment C: Compaction Latency Hiding (Pipelining)
+*   **Hypothesis:** Local software pipelining in `CompactionJob` can hide SST block I/O latency without viral refactors.
+*   **Profile Signal:** High `off-cpu` time in `bperf` during compaction block reads.
+*   **Action:** Evaluate if evolutionary mutations can prefetch the next block while processing the current block, staying within `compaction_job.cc`.
 
 ## 4. Operational Alignment
 - **Canonical Repository:** `/home/rpi/Repositories/openevolve` (linked to `~/workspace/openevolve`).

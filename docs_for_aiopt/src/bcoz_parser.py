@@ -155,7 +155,7 @@ def run_bcoz(
     profile_file = output_dir / "profile.coz"
     
     cmd = [
-        "coz", "run",
+        "bcoz", "run",
         "-o", str(profile_file)
     ]
     
