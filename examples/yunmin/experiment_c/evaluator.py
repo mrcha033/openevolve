@@ -117,8 +117,9 @@ def evaluate(program_path: str) -> dict:
     try:
         module = _load_program(program_path)
         diff_text = getattr(module, "MUTATION_DIFF", "")
-        if not isinstance(diff_text, str) or not diff_text.strip():
-            return {"combined_score": 0.0, "error": "Empty MUTATION_DIFF string."}
+        if not isinstance(diff_text, str):
+            return {"combined_score": 0.0, "error": "MUTATION_DIFF must be a string."}
+        noop_diff = not diff_text.strip()
     except Exception as exc:
         return {"combined_score": 0.0, "error": f"Load failed: {exc}"}
 
@@ -172,15 +173,16 @@ def evaluate(program_path: str) -> dict:
             if not path.exists():
                 return {"combined_score": 0.0, "error": f"Target file missing: {path}"}
 
-        for path in target_files:
-            original_text = path.read_text(encoding="utf-8")
-            updated = apply_diff(original_text, diff_text)
-            if updated != original_text:
-                path.write_text(updated, encoding="utf-8")
-                applied.append((path, original_text))
+        if not noop_diff:
+            for path in target_files:
+                original_text = path.read_text(encoding="utf-8")
+                updated = apply_diff(original_text, diff_text)
+                if updated != original_text:
+                    path.write_text(updated, encoding="utf-8")
+                    applied.append((path, original_text))
 
-        if not applied:
-            return {"combined_score": 0.0, "error": "Diff did not apply to any target file."}
+            if not applied:
+                return {"combined_score": 0.0, "error": "Diff did not apply to any target file."}
 
         if build_cmd:
             build_result = subprocess.run(
