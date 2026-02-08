@@ -112,10 +112,14 @@ int main(int argc, char **argv) {
     ReferenceForces(bodies, ref_fx, ref_fy, ref_fz);
     ComputeForces(bodies, fx, fy, fz);
     for (int i = 0; i < num_bodies; ++i) {
+        double mag = std::abs(ref_fx[i]) + std::abs(ref_fy[i]) + std::abs(ref_fz[i]);
         double err = std::abs(fx[i] - ref_fx[i]) + std::abs(fy[i] - ref_fy[i])
                    + std::abs(fz[i] - ref_fz[i]);
-        if (err > 1e-6) {
-            std::cerr << "force mismatch at body " << i << std::endl;
+        // Relative tolerance: allow FP reordering from SIMD/SoA/tiling
+        double tol = std::max(1e-6, mag * 1e-6);
+        if (err > tol) {
+            std::cerr << "force mismatch at body " << i
+                      << " err=" << err << " tol=" << tol << std::endl;
             return 2;
         }
     }

@@ -55,6 +55,7 @@ def _compile(program_path: str, out_path: Path) -> None:
     cmd = [
         "g++",
         "-O3",
+        "-g",
         "-std=c++17",
         "-DNDEBUG",
         "-lm",
@@ -84,11 +85,6 @@ def evaluate(program_path: str) -> dict:
     run_bcoz_enabled = DEFAULT_RUN_BCOZ if run_bcoz_flag is None else run_bcoz_flag == "1"
     run_bperf_enabled = DEFAULT_RUN_BPERF if run_bperf_flag is None else run_bperf_flag == "1"
 
-    if run_bcoz_enabled and run_bcoz is None:
-        return {"combined_score": 0.0, "error": "bcoz_parser unavailable", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
-    if run_bperf_enabled and run_bperf is None:
-        return {"combined_score": 0.0, "error": "bperf_parser unavailable", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
-
     try:
         tmp_dir = Path(tempfile.mkdtemp(prefix="aiopt_stencil_"))
         bin_path = tmp_dir / "bench_bin"
@@ -101,22 +97,28 @@ def evaluate(program_path: str) -> dict:
         bperf_result = None
         profiler_dir = Path(tempfile.mkdtemp(prefix="aiopt_profiler_"))
 
-        if run_bcoz_enabled:
-            bcoz_result = run_bcoz(
-                str(bin_path),
-                args=["--json", str(metrics_path)],
-                duration_sec=int(os.getenv("AI_OPT_BCOZ_DURATION", "30")),
-                output_dir=profiler_dir,
-                progress_points=[],
-            )
+        if run_bcoz_enabled and run_bcoz is not None:
+            try:
+                bcoz_result = run_bcoz(
+                    str(bin_path),
+                    args=["--json", str(metrics_path)],
+                    duration_sec=int(os.getenv("AI_OPT_BCOZ_DURATION", "30")),
+                    output_dir=profiler_dir,
+                    progress_points=[],
+                )
+            except Exception:
+                bcoz_result = None
 
-        if run_bperf_enabled:
-            bperf_result = run_bperf(
-                str(bin_path),
-                args=["--json", str(metrics_path)],
-                duration_sec=int(os.getenv("AI_OPT_BPERF_DURATION", "20")),
-                output_dir=profiler_dir,
-            )
+        if run_bperf_enabled and run_bperf is not None:
+            try:
+                bperf_result = run_bperf(
+                    str(bin_path),
+                    args=["--json", str(metrics_path)],
+                    duration_sec=int(os.getenv("AI_OPT_BPERF_DURATION", "20")),
+                    output_dir=profiler_dir,
+                )
+            except Exception:
+                bperf_result = None
 
         result = MutationResult(
             mutation_id="iteration",

@@ -34,7 +34,7 @@ prompt:
     - Keep the function signature: void ComputeForces(const vector<Body>&, vector<double>&, vector<double>&, vector<double>&)
     - The Body struct has fields: x, y, z, vx, vy, vz, mass.
     - Must compute gravitationally correct pairwise forces with softening eps2 = 1e-9.
-    - Results must match the reference within 1e-6 absolute error per body.
+    - Results must match the reference within 1e-6 relative error per body.
     - Use only the C++ standard library. No external dependencies.
     - Do not add top-level side effects or debug printing.
 
