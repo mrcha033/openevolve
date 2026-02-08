@@ -1,0 +1,39 @@
+max_iterations: 50
+checkpoint_interval: 10
+parallel_evaluations: 1
+
+llm:
+  api_base: "http://127.0.0.1:8000/v1"
+  models:
+    - name: "local-model"
+      weight: 1.0
+  temperature: 0.5
+  max_tokens: 3000
+  timeout: 180
+
+database:
+  population_size: 30
+  num_islands: 2
+  migration_interval: 10
+  feature_dimensions:
+    - "ops_per_sec"
+    - "p99_latency_us"
+
+evaluator:
+  timeout: 180
+  max_retries: 1
+
+prompt:
+  system_message: |
+    You are a performance optimization expert.
+    Optimize the checksum/hash kernel inside the EVOLVE-BLOCK.
+
+    Requirements:
+    - Must compute exact FNV-1a 32-bit hash.
+    - Keep the same function signature.
+
+    Focus on throughput and reducing per-byte overhead.
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+log_level: "INFO"

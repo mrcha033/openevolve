@@ -1,29 +1,8 @@
-# Experiment D: Local Prototyping (Not Implemented)
+# Experiment D: Local Prototyping
 
-## Objective
-This document describes a possible local prototyping path. It is not implemented in the current codebase or experiments.
+**Status:** ARCHIVED — Superseded by task redesign (2026-02-08)
 
-## Current Implementation
-- Experiments run against a full RocksDB source tree configured via `AI_OPT_ROCKSDB_PATH`.
-- Evaluators are defined in `examples/yunmin/experiment_*/evaluator.py`.
+This document described a local RocksDB-Lite prototyping path. It is no longer applicable after the pivot away from RocksDB kernel mutation toward self-contained program optimization.
 
-## Scope (If Implemented Later)
-This would validate a local end-to-end loop with limited profiler support. It is intentionally out of scope for the current pipeline.
-
-## Setup Steps
-Not applicable to the current implementation.
-
-## Mutation Targets
-Use the targets in `examples/yunmin`:
-- Experiment A: `db/db_impl/db_impl_write.cc`
-- Experiment B: `db/db_impl/db_impl_write.cc`
-- Experiment C: `db/compaction/compaction_job.cc`
-
-## Fitness Function
-See `openevolve/aiopt/fitness.py`.
-
-## Success Criteria
-Not applicable to the current implementation.
-
-## Limitations
-Not applicable to the current implementation.
+See `AIOpt_Proposal.md` for the current experiment design.
+See `AIOpt_Critical_Review.md` for why the RocksDB approach was abandoned.

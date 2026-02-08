@@ -1,39 +1,100 @@
 # PROJECT_PLAN: AIOpt (CSLab Research)
-Status: Blocked (SSH ProxyJump Down)
 
-## Objectives
-1.  Optimize RocksDB performance using C++ kernel mutation.
-2.  Use BCOZ speedup predictions to guide evolutionary mutations via OpenEvolve.
-3.  Target: CSLab Server (165.132.141.223).
+**Status:** Pivoting — task redesign in progress
+**Last updated:** 2026-02-08
 
-## Technical Requirements
--   **Environment:** Ubuntu 24.04, Kernel 6.17.
--   **Tools:** `bperf`, `BCOZ`, `coz` (verified working on server).
--   **Build:** Custom `gflags` in `~/local` (no sudo).
+## Research Question
 
-## Current Status
--   **SSH ProxyJump:** 192.168.0.4 (Windows host) is currently timed out/down.
--   **RocksDB Setup:** Pending environment access.
+> When an LLM evolves code for a general performance goal, does runtime profiling feedback shift it from superficial rewrites toward structurally meaningful optimizations?
 
-## Next Milestones
-1. [ ] Restore SSH access to `cslab-server`.
-2. [x] **Experiment B/C Prompt Templates:** Drafted Lock Contention and Compaction Pipelining prompts (2026-02-05).
-3. [x] **Experiment D Design:** Local RocksDB-Lite prototyping plan for SSH-independent validation (2026-02-05).
-4. [x] **Profiler-in-the-Loop Architecture:** Designed BCOZ/bperf integration into OpenEvolve fitness loop (2026-02-05).
-5. [x] **Core Implementation:** `bperf_parser.py`, `bcoz_parser.py`, `fitness.py` created in `src/` (2026-02-05).
-6. [ ] Execute Experiment D locally (RPi or Mac) to validate OpenEvolve pipeline.
-7. [ ] Initialize containerized environment (Ubuntu 20.04/24.04) if local prototyping is needed.
-8. [ ] Verify RocksDB build with local `gflags`.
-9. [ ] Execute initial BCOZ profiling on baseline RocksDB (requires server).
-10. [ ] Implement first round of C++ kernel mutations via OpenEvolve.
+## Background and Motivation
 
-## Experiment Design & Critical Review
-- **Bottleneck-Aware Experimentation:** The primary goal is designing experiments that leverage `bperf` and `BCOZ` context.
-- **Hypothesis-Driven Mutation:** Move from general tuning to specific, BCOZ-guided code refactoring.
-- **Reference:** See `memory/projects/cslab/aiopt/research/AIOpt_Critical_Review.md` for the full audit and design strategy.
+LLM-driven evolutionary code optimization (AlphaEvolve, OpenEvolve) has shown strong results on self-contained algorithmic tasks: kernel fusion in GPT-Mini C++ (288 tok/s, our checkpoint_100), sorting networks, hash functions (AlphaEvolve). PerfCodeGen showed that runtime execution feedback improves LLM-generated code quality. SysGPT systematized serial optimization into 8 methodologies (batching, caching, precomputing, deferring, relaxation, contextualization, HW specialization, layering).
 
-## Alternative Optimization Paths (Blocked Context)
-- **Local Simulation (RocksDB-Lite):** Prototype mutations on a scaled-down RocksDB instance on the RPi/Mac to test `OpenEvolve` logic before server deployment.
-- **Compaction Pipelining Analysis:** Investigate local software pipelining in `compaction_job.cc` (prefetch next block while processing current) as a low-risk latency-hiding mutation template.
-- **Genetic Configuration Tuning (K2vTune):** Adapt `K2vTune` (2023) genetic algorithm concepts for automated RocksDB configuration tuning in parallel with kernel mutations.
-- **TiKV Multi-Batch Integration:** Model the "Shared LSM" flow control from TiKV (2025) as a higher-level structural mutation target.
+**The gap:** No work has studied whether *causal profiling* feedback (BCOZ speedup predictions, bperf off-CPU analysis) improves the *evolutionary search* itself — not just the final code quality, but the character and direction of mutations over time.
+
+## Lessons Learned (RocksDB Experiment, 2026-02-08)
+
+The initial approach — evolving C++ diffs for RocksDB kernel code — failed for two reasons:
+
+1. **Task formulation:** A triple-indirection design (Python string containing a C++ diff) made it impossible for the LLM to produce valid mutations. 50 iterations yielded zero applied diffs. See `research/AIOpt_Critical_Review.md`.
+
+2. **Circularity:** All three experiments (WAL write path, lock contention, compaction pipelining) defined the task in terms of what the profiler measures. Showing that bperf helps reduce mutex contention when the task IS "reduce mutex contention" is tautological.
+
+## New Direction: Self-Contained Program Optimization
+
+### Design Principles (from literature)
+
+| Principle | Source | Application |
+|-----------|--------|-------------|
+| Reliable automated verifiers | Barbarians at the Gate | Programs must be runnable with measurable metrics |
+| Contained scope (50–300 lines) | Barbarians / AlphaEvolve | LLM evolves the program directly, no indirection |
+| Smooth reward surface | Let the Barbarians In | Fitness improves gradually, not pass/fail |
+| Diff-based evolution | AlphaEvolve / OpenEvolve | SEARCH/REPLACE on actual source |
+| Runtime execution feedback | PerfCodeGen | Profiler results in the prompt, not just scores |
+| Methodology-aware guidance | SysGPT | Prompt can reference the 8 serial optimization methodologies |
+
+### Task Selection Criteria
+
+The optimization target must satisfy:
+
+1. **Self-contained** — single file, LLM sees and evolves the actual code
+2. **Fast evaluation** — seconds, not minutes (enables 100+ iterations)
+3. **Non-obvious bottleneck** — profiler reveals something the LLM can't predict from source inspection (cache behavior, branch misprediction, blocking patterns)
+4. **Rich optimization space** — multiple valid strategies exist (algorithmic, memory layout, SIMD, etc.)
+5. **Not circular** — the task description doesn't name the bottleneck the profiler measures
+
+### Candidate Tasks
+
+See `research/AIOpt_Proposal.md` for detailed design. Summary:
+
+| Candidate | Type | Why profiler helps non-obviously |
+|-----------|------|----------------------------------|
+| C++ program optimization (parser, B-tree, compression) | Direct code evolution | Cache misses, memory stalls invisible from source |
+| Heuristic evolution (cache eviction, scheduling) | Small function evolution | Runtime workload behavior unpredictable from code |
+| Data structure layout (AoS→SoA, field ordering) | Memory layout evolution | Cache line utilization invisible without profiler |
+
+### Experiment Design: 4-Track Factorial
+
+| Track | Model | Profiler Feedback | Tests |
+|-------|-------|-------------------|-------|
+| A | Local (Llama 70B) | None (score only) | Baseline LLM capability |
+| B | Strong (GPT-5) | None (score only) | Model quality effect |
+| C | Local (Llama 70B) | BCOZ + bperf artifacts in prompt | Profiler feedback effect |
+| D | Strong (GPT-5) | BCOZ + bperf artifacts in prompt | Combined upper bound |
+
+**Key comparisons:**
+- C vs A (same model) → isolates profiler feedback contribution
+- B vs A (same feedback) → isolates model quality contribution
+- D vs B (same model) → does profiler feedback help even strong models?
+- Statistical power: 5 seeds per track, significance threshold from baseline noise
+
+## Infrastructure Status
+
+The OpenEvolve integration is complete and validated:
+- `openevolve/aiopt/bperf_parser.py` — parser + `generate_mutation_context()`
+- `openevolve/aiopt/bcoz_parser.py` — parser + `generate_mutation_context()`
+- `openevolve/aiopt/fitness.py` — causal fitness function
+- `openevolve/evaluation_result.py` — `EvaluationResult` with artifact support
+- Evaluator → artifact → prompt pipeline verified end-to-end
+- `run_track.sh` — 4-track runner with seed support
+- `capture_baseline.sh` — automated baseline capture
+
+## Milestones
+
+1. [ ] Finalize task selection (choose from candidates in Proposal)
+2. [ ] Implement new initial_program + evaluator for chosen task
+3. [ ] Sanity check: 5-iteration run confirming LLM produces valid mutations
+4. [ ] Capture baseline metrics and noise floor
+5. [ ] Run 4-track experiment (5 seeds each = 20 runs)
+6. [ ] Analyze results: mutation quality, score trajectories, diversity
+7. [ ] Write up findings
+
+## References
+
+- AlphaEvolve (DeepMind, 2025) — evolutionary coding agent, MAP-Elites
+- Barbarians at the Gate (UC Berkeley, 2025) — ADRS framework
+- Let the Barbarians In (2025) — extended evaluation, design recommendations
+- SysGPT (Park et al., OSDI 2025) — 8 serial optimization methodologies
+- PerfCodeGen (Salesforce, 2024) — runtime feedback for LLM code optimization
+- Blocked Samples (2024) — BCOZ/bperf causal + off-CPU profiling

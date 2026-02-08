@@ -27,7 +27,7 @@ Use the shared runner script `../run_track.sh` from the parent directory.
 
 ### Prerequisites
 *   **Env:** `AI_OPT_ROCKSDB_PATH` must point to your RocksDB source.
-*   **Profiler:** For Tracks C/D, `coz` and `bperf` must be installed.
+*   **Profiler:** For Tracks C/D, `bcoz` and `bperf` must be installed.
 *   **LLM:** `vllm` or `ollama` running locally, or `OPENAI_API_KEY` set.
 
 ### Commands
