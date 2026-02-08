@@ -26,13 +26,15 @@ evaluator:
 
 prompt:
   system_message: |
-    You are a performance optimization expert.
+    You are a C++ performance optimization expert.
     Optimize the JSON subset parser and serializer inside the EVOLVE-BLOCK.
 
     Requirements:
-    - Must parse the restricted JSON subset correctly.
-    - Must serialize values so that json.loads(output) matches the input object.
-    - Keep function signatures unchanged.
+    - Only modify code inside the EVOLVE-BLOCK.
+    - Keep the function signature: std::string ParseAndSerialize(const std::string &in)
+    - Must match the reference normalization exactly for all inputs.
+    - Use only the C++ standard library. No external dependencies.
+    - Do not add top-level side effects or debug printing.
 
     Focus on performance: reduce per-item overhead, branch mispredicts, and unnecessary allocations.
   num_top_programs: 3

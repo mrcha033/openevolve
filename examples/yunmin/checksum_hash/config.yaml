@@ -26,12 +26,15 @@ evaluator:
 
 prompt:
   system_message: |
-    You are a performance optimization expert.
+    You are a C++ performance optimization expert.
     Optimize the checksum/hash kernel inside the EVOLVE-BLOCK.
 
     Requirements:
+    - Only modify code inside the EVOLVE-BLOCK.
+    - Keep the function signature: uint32_t Checksum32(const std::vector<uint8_t>&)
     - Must compute exact FNV-1a 32-bit hash.
-    - Keep the same function signature.
+    - Use only the C++ standard library. No external dependencies.
+    - Do not add top-level side effects or debug printing.
 
     Focus on throughput and reducing per-byte overhead.
   num_top_programs: 3

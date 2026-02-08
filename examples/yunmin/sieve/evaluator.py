@@ -1,11 +1,8 @@
 import json
 import os
-import shlex
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
 
 from openevolve.aiopt.fitness import Baseline, MutationResult, causal_fitness, fast_fitness
 from openevolve.evaluation_result import EvaluationResult
@@ -23,7 +20,7 @@ except Exception:
     bperf_context = None
 
 
-EXPERIMENT_NAME = "json_parser"
+EXPERIMENT_NAME = "sieve"
 ROOT = Path(__file__).resolve().parent
 BASELINE_FILE = ROOT / "baseline.json"
 
@@ -36,25 +33,18 @@ def _load_baseline() -> dict:
         with BASELINE_FILE.open("r", encoding="utf-8") as f:
             return json.load(f)
     return {
-        "ops_per_sec": 5000.0,
-        "p99_latency_us": 200.0,
-        "off_cpu_ratio": 0.05,
+        "ops_per_sec": 50.0,
+        "p99_latency_us": 20000.0,
+        "off_cpu_ratio": 0.02,
         "bcoz_max_speedup": 5.0,
     }
 
 
 def _set_baseline(baseline: dict) -> None:
-    Baseline.THROUGHPUT_OPS_SEC = float(baseline.get("ops_per_sec", 5000.0))
-    Baseline.P99_LATENCY_US = float(baseline.get("p99_latency_us", 200.0))
-    Baseline.OFF_CPU_RATIO = float(baseline.get("off_cpu_ratio", 0.05))
+    Baseline.THROUGHPUT_OPS_SEC = float(baseline.get("ops_per_sec", 50.0))
+    Baseline.P99_LATENCY_US = float(baseline.get("p99_latency_us", 20000.0))
+    Baseline.OFF_CPU_RATIO = float(baseline.get("off_cpu_ratio", 0.02))
     Baseline.BCOZ_MAX_SPEEDUP = float(baseline.get("bcoz_max_speedup", 5.0))
-
-
-def _split_command(cmd: str) -> Tuple[str, List[str]]:
-    parts = shlex.split(cmd)
-    if not parts:
-        raise RuntimeError("Empty command string.")
-    return parts[0], parts[1:]
 
 
 def _compile(program_path: str, out_path: Path) -> None:
@@ -62,7 +52,6 @@ def _compile(program_path: str, out_path: Path) -> None:
     if build_cmd:
         subprocess.run(build_cmd, shell=True, check=True, cwd=str(ROOT))
         return
-
     cmd = [
         "g++",
         "-O3",
@@ -79,7 +68,7 @@ def _compile(program_path: str, out_path: Path) -> None:
 
 def _run_bench(bin_path: str, metrics_path: Path) -> dict:
     cmd = [bin_path, "--json", str(metrics_path)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "bench failed")
     return json.loads(metrics_path.read_text(encoding="utf-8"))
@@ -95,12 +84,12 @@ def evaluate(program_path: str) -> dict:
     run_bperf_enabled = DEFAULT_RUN_BPERF if run_bperf_flag is None else run_bperf_flag == "1"
 
     if run_bcoz_enabled and run_bcoz is None:
-        return {"combined_score": 0.0, "error": "bcoz_parser unavailable (disable AI_OPT_RUN_BCOZ or install parser).", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
+        return {"combined_score": 0.0, "error": "bcoz_parser unavailable", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
     if run_bperf_enabled and run_bperf is None:
-        return {"combined_score": 0.0, "error": "bperf_parser unavailable (disable AI_OPT_RUN_BPERF or install parser).", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
+        return {"combined_score": 0.0, "error": "bperf_parser unavailable", "ops_per_sec": 0.0, "p99_latency_us": 0.0}
 
     try:
-        tmp_dir = Path(tempfile.mkdtemp(prefix="aiopt_cpp_"))
+        tmp_dir = Path(tempfile.mkdtemp(prefix="aiopt_sieve_"))
         bin_path = tmp_dir / "bench_bin"
         _compile(program_path, bin_path)
 

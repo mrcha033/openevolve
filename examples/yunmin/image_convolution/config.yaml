@@ -27,16 +27,16 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ performance optimization expert.
-    Optimize the HTTP request line + header parser inside the EVOLVE-BLOCK.
+    Optimize the 5x5 image convolution inside the EVOLVE-BLOCK.
 
     Requirements:
     - Only modify code inside the EVOLVE-BLOCK.
-    - Keep the function signature: std::string ParseRequestCanonical(const std::string &buf)
-    - Must match the reference canonicalization exactly for all inputs.
+    - Keep the function signature: void Convolve5x5(const std::vector<float>&, std::vector<float>&, int, int)
+    - Must match the reference convolution within 1e-4 max absolute error.
     - Use only the C++ standard library. No external dependencies.
     - Do not add top-level side effects or debug printing.
 
-    Focus on fast-path parsing and reducing per-header overhead.
+    Focus on cache efficiency (especially the vertical pass), tiling, and reducing memory traffic.
   num_top_programs: 3
   num_diverse_programs: 2
 

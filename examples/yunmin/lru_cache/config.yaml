@@ -26,12 +26,15 @@ evaluator:
 
 prompt:
   system_message: |
-    You are a performance optimization expert.
+    You are a C++ performance optimization expert.
     Optimize the LRU cache implementation inside the EVOLVE-BLOCK.
 
     Requirements:
+    - Only modify code inside the EVOLVE-BLOCK.
+    - Keep the class name and public API: LRUCache::LRUCache(int), bool access(int).
     - Must behave exactly like a true LRU with fixed capacity.
-    - access(key) returns True on hit, False on miss.
+    - Use only the C++ standard library. No external dependencies.
+    - Do not add top-level side effects or debug printing.
 
     Focus on data layout, hot path checks, and minimizing per-access overhead.
   num_top_programs: 3

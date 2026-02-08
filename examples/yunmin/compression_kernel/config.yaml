@@ -26,12 +26,15 @@ evaluator:
 
 prompt:
   system_message: |
-    You are a performance optimization expert.
+    You are a C++ performance optimization expert.
     Optimize the compression/decompression kernel in the EVOLVE-BLOCK.
 
     Requirements:
-    - compress and decompress must be exact inverses.
-    - Maintain the specified RLE-like format.
+    - Only modify code inside the EVOLVE-BLOCK.
+    - Keep function signatures: Compress(const std::vector<uint8_t>&) and Decompress(...).
+    - Must adhere to the specified RLE-like format.
+    - Use only the C++ standard library. No external dependencies.
+    - Do not add top-level side effects or debug printing.
 
     Focus on scanning throughput and avoiding per-byte overhead.
   num_top_programs: 3

@@ -1,4 +1,4 @@
-# Checksumming / Hashing Pipeline
+# Checksumming / Hashing Pipeline (C++)
 
 ## Objective
 Optimize a byte-wise checksum kernel where vectorization and memory bandwidth dominate.
@@ -10,13 +10,18 @@ Optimize a byte-wise checksum kernel where vectorization and memory bandwidth do
 ## Metrics
 - `ops_per_sec`
 - `p99_latency_us`
+- `gb_per_sec`
+
+## Requirements
+- C++17 toolchain (`g++`)
+- bcoz/bperf for profiler tracks
 
 ## How To Run
 ```bash
-AI_OPT_TRACK=baseline ../run_track.sh checksum_hash
+AI_OPT_TRACK=baseline ./run_track.sh checksum_hash
 ```
 
 Profiler track:
 ```bash
-AI_OPT_TRACK=profiler ../run_track.sh checksum_hash
+AI_OPT_TRACK=profiler ./run_track.sh checksum_hash
 ```

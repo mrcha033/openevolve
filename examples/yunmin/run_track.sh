@@ -56,6 +56,9 @@ fi
 
 CONFIG="$EXP_DIR/config.yaml"
 INIT="$EXP_DIR/initial_program.py"
+if [[ -f "$EXP_DIR/initial_program.cpp" ]]; then
+  INIT="$EXP_DIR/initial_program.cpp"
+fi
 EVAL="$EXP_DIR/evaluator.py"
 
 EXTRA_ARGS=()

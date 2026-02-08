@@ -27,16 +27,16 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ performance optimization expert.
-    Optimize the HTTP request line + header parser inside the EVOLVE-BLOCK.
+    Optimize the prime-counting sieve inside the EVOLVE-BLOCK.
 
     Requirements:
     - Only modify code inside the EVOLVE-BLOCK.
-    - Keep the function signature: std::string ParseRequestCanonical(const std::string &buf)
-    - Must match the reference canonicalization exactly for all inputs.
+    - Keep the function signature: int CountPrimes(int limit)
+    - Must return the exact count of primes <= limit.
     - Use only the C++ standard library. No external dependencies.
     - Do not add top-level side effects or debug printing.
 
-    Focus on fast-path parsing and reducing per-header overhead.
+    Make the sieve as fast as possible.
   num_top_programs: 3
   num_diverse_programs: 2
 

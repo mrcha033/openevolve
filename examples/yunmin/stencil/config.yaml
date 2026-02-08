@@ -27,16 +27,18 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ performance optimization expert.
-    Optimize the HTTP request line + header parser inside the EVOLVE-BLOCK.
+    Optimize the 2D stencil computation inside the EVOLVE-BLOCK.
 
     Requirements:
     - Only modify code inside the EVOLVE-BLOCK.
-    - Keep the function signature: std::string ParseRequestCanonical(const std::string &buf)
-    - Must match the reference canonicalization exactly for all inputs.
+    - Keep the function signature: void StencilStep(const vector<double>&, vector<double>&, int N)
+    - Must compute 5-point Jacobi stencil: out[i][j] = 0.25 * (in[i-1][j] + in[i+1][j] + in[i][j-1] + in[i][j+1])
+    - Only update interior cells (i,j in [1..N-2]).
+    - Results must match the reference within 1e-6 absolute error (checksum).
     - Use only the C++ standard library. No external dependencies.
     - Do not add top-level side effects or debug printing.
 
-    Focus on fast-path parsing and reducing per-header overhead.
+    Make the stencil computation as fast as possible.
   num_top_programs: 3
   num_diverse_programs: 2
 
