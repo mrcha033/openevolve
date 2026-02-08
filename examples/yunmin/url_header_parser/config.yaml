@@ -1,6 +1,7 @@
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
+diff_based_evolution: false
 
 llm:
   api_base: "http://127.0.0.1:8000/v1"
