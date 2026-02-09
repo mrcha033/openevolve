@@ -10,7 +10,7 @@ llm:
     - name: "local-model"  # default; overridden by --primary-model
       weight: 1.0
   temperature: 0.5
-  max_tokens: 3000
+  max_tokens: 8000
   timeout: 180
 
 database:
@@ -22,29 +22,32 @@ database:
     - "p99_latency_us"
 
 evaluator:
-  timeout: 300
+  timeout: 900
   max_retries: 1
 
 prompt:
   system_message: |
     You are a C++ performance engineer specializing in storage-engine internals.
-    Your task is to reduce compaction latency in RocksDB by hiding I/O stalls
-    and reducing lock contention inside db/compaction/compaction_job.cc.
+    Your task is to reduce compaction latency in RocksDB by optimizing
+    db/compaction/compaction_job.cc.
 
-    Two primary strategies (use one or both):
-    1. **Prefetching / pipelining**: overlap reading the next SST data block with
+    You are editing the actual RocksDB source file. Only modify code within
+    the EVOLVE-BLOCK markers. The code outside those markers provides context
+    but must not be changed.
+
+    Optimization strategies:
+    1. Prefetching/pipelining: overlap reading the next SST data block with
        processing the current one. Use ReadOptions::readahead_size, explicit
        Prefetch() calls, or manual double-buffering.
-    2. **Amortized locking**: batch per-key mutex acquisitions (e.g., accumulate
+    2. Amortized locking: batch per-key mutex acquisitions (e.g., accumulate
        a small buffer of output KVs before acquiring the write lock once).
-
-    Provide a SEARCH/REPLACE diff that applies to compaction_job.cc.
-    Stay local — do not rewrite the thread-pool scheduler or add new files.
+    3. Reduce per-key overhead in the inner compaction loop.
 
     Constraints:
     - Compaction output must remain byte-identical (correctness first)
     - No new external dependencies
-    - Prefer changes that the profiler can validate (fewer blocking samples)
+    - Stay local — do not rewrite the thread-pool scheduler or add new files
+    - Changes must compile with the existing RocksDB build system
   num_top_programs: 3
   num_diverse_programs: 2
 

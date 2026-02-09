@@ -9,6 +9,48 @@
 #include <string>
 #include <vector>
 
+// --- Hardware Performance Counters (Linux perf_event_open, no sudo) ---
+#ifdef __linux__
+#include <linux/perf_event.h>
+#include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
+struct HWCounters {
+    long long cycles = 0, instructions = 0;
+    long long cache_misses = 0, cache_refs = 0;
+    long long branch_misses = 0, branches = 0;
+#ifdef __linux__
+    int fds[6] = {-1,-1,-1,-1,-1,-1};
+    void start() {
+        auto open_ev = [](int cfg) {
+            struct perf_event_attr pe{};
+            pe.type = PERF_TYPE_HARDWARE; pe.size = sizeof(pe);
+            pe.config = cfg; pe.disabled = 1;
+            pe.exclude_kernel = 1; pe.exclude_hv = 1;
+            return (int)syscall(__NR_perf_event_open, &pe, 0, -1, -1, 0);
+        };
+        fds[0]=open_ev(PERF_COUNT_HW_CPU_CYCLES);
+        fds[1]=open_ev(PERF_COUNT_HW_INSTRUCTIONS);
+        fds[2]=open_ev(PERF_COUNT_HW_CACHE_MISSES);
+        fds[3]=open_ev(PERF_COUNT_HW_CACHE_REFERENCES);
+        fds[4]=open_ev(PERF_COUNT_HW_BRANCH_MISSES);
+        fds[5]=open_ev(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+        for (int i=0;i<6;++i) if(fds[i]>=0){ioctl(fds[i],PERF_EVENT_IOC_RESET,0);ioctl(fds[i],PERF_EVENT_IOC_ENABLE,0);}
+    }
+    void stop() {
+        for (int i=0;i<6;++i) if(fds[i]>=0) ioctl(fds[i],PERF_EVENT_IOC_DISABLE,0);
+        long long v[6]={};
+        for (int i=0;i<6;++i) if(fds[i]>=0){::read(fds[i],&v[i],sizeof(long long));close(fds[i]);fds[i]=-1;}
+        cycles=v[0]; instructions=v[1]; cache_misses=v[2]; cache_refs=v[3]; branch_misses=v[4]; branches=v[5];
+    }
+#else
+    void start() {}
+    void stop() {}
+#endif
+};
+
 static const int GRID_N = 1024;
 
 // Reference stencil step (outside EVOLVE-BLOCK)
@@ -97,14 +139,15 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    // Benchmark: each round runs `timesteps` stencil steps
+    // Benchmark with hardware counters
+    HWCounters hwc;
     std::vector<double> latencies;
     latencies.reserve(rounds * timesteps);
     double total_time = 0.0;
     long long total_steps = 0;
 
+    hwc.start();
     for (int r = 0; r < rounds; ++r) {
-        // Re-init grid each round for consistent measurement
         std::copy(grid_a.begin(), grid_a.end(), test_a.begin());
         std::fill(test_b.begin(), test_b.end(), 0.0);
 
@@ -119,12 +162,12 @@ int main(int argc, char **argv) {
             std::swap(test_a, test_b);
         }
     }
+    hwc.stop();
 
     double ops_per_sec = total_steps / total_time;
     std::sort(latencies.begin(), latencies.end());
     double p99 = latencies.empty() ? 0.0
         : latencies[(size_t)(0.99 * (latencies.size() - 1))];
-    // Each step updates (N-2)*(N-2) cells, 5 FLOP each
     double gflops = (double)(N - 2) * (N - 2) * 5.0 * total_steps
                   / total_time / 1e9;
 
@@ -134,7 +177,13 @@ int main(int argc, char **argv) {
     os << "{\"ops_per_sec\":" << ops_per_sec
        << ",\"p99_latency_us\":" << (p99 * 1e6)
        << ",\"gflops\":" << gflops
-       << ",\"grid_size\":" << N << "}";
+       << ",\"grid_size\":" << N
+       << ",\"hw_cycles\":" << hwc.cycles
+       << ",\"hw_instructions\":" << hwc.instructions
+       << ",\"hw_cache_misses\":" << hwc.cache_misses
+       << ",\"hw_cache_refs\":" << hwc.cache_refs
+       << ",\"hw_branch_misses\":" << hwc.branch_misses
+       << ",\"hw_branches\":" << hwc.branches << "}";
     WriteJson(json_path, os.str());
     return 0;
 }

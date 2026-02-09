@@ -2,7 +2,20 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 experiment_a|experiment_b|experiment_c"
+  echo "Usage: $0 <experiment_dir>"
+  echo ""
+  echo "Examples:"
+  echo "  $0 experiment_a          # RocksDB WAL write path"
+  echo "  $0 nbody                 # N-body micro-benchmark"
+  echo "  $0 sieve                 # Sieve of Eratosthenes"
+  echo "  $0 stencil               # 2D heat stencil"
+  echo ""
+  echo "Environment:"
+  echo "  AI_OPT_TRACK=baseline|gpt5|profiler|gpt5_profiler"
+  echo "  AI_OPT_SEED=N            # for multiple-seed runs"
+  echo ""
+  echo "For RocksDB experiments, also set:"
+  echo "  AI_OPT_ROCKSDB_PATH      AI_OPT_BUILD_CMD      AI_OPT_BENCH_CMD"
   exit 1
 fi
 
@@ -58,6 +71,8 @@ CONFIG="$EXP_DIR/config.yaml"
 INIT="$EXP_DIR/initial_program.py"
 if [[ -f "$EXP_DIR/initial_program.cpp" ]]; then
   INIT="$EXP_DIR/initial_program.cpp"
+elif [[ -f "$EXP_DIR/initial_program.cc" ]]; then
+  INIT="$EXP_DIR/initial_program.cc"
 fi
 EVAL="$EXP_DIR/evaluator.py"
 

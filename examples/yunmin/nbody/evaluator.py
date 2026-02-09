@@ -19,6 +19,11 @@ except Exception:
     run_bperf = None
     bperf_context = None
 
+try:
+    from openevolve.aiopt.hw_counter_context import generate_hw_context
+except Exception:
+    generate_hw_context = None
+
 
 EXPERIMENT_NAME = "nbody"
 ROOT = Path(__file__).resolve().parent
@@ -151,6 +156,10 @@ def evaluate(program_path: str) -> dict:
             artifacts["profiler_bcoz"] = bcoz_context(bcoz_result)
         if bperf_result and bperf_context:
             artifacts["profiler_bperf"] = bperf_context(bperf_result)
+        if generate_hw_context:
+            hw_ctx = generate_hw_context(metrics)
+            if hw_ctx:
+                artifacts["profiler_hw_counters"] = hw_ctx
 
         if artifacts:
             return EvaluationResult(metrics=response, artifacts=artifacts)
