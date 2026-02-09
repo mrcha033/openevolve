@@ -56,7 +56,7 @@ insert_markers() {
         return 1
     fi
 
-    python3 - "$src" "$out" "$start_pattern" "$end_pattern" << 'PYEOF'
+    python - "$src" "$out" "$start_pattern" "$end_pattern" << 'PYEOF'
 import sys, re
 
 src_path, out_path, start_pat, end_pat = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
