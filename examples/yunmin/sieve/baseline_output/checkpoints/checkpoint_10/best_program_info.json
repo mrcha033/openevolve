@@ -1,0 +1,16 @@
+{
+  "id": "c047bba6-4363-41da-bd50-7d37ab82a312",
+  "generation": 2,
+  "iteration": 6,
+  "current_iteration": 10,
+  "metrics": {
+    "combined_score": 1.3205,
+    "ops_per_sec": 40.785936,
+    "p99_latency_us": 24526.24,
+    "bcoz_max_speedup": 5.0,
+    "bperf_offcpu_ratio": 0.02
+  },
+  "language": "cpp",
+  "timestamp": 1770563124.306488,
+  "saved_at": 1770563183.4219658
+}

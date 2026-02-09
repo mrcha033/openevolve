@@ -1,0 +1,16 @@
+{
+  "id": "ddd05018-ef04-4130-a004-eadcb014459a",
+  "generation": 3,
+  "iteration": 29,
+  "timestamp": 1770563482.991067,
+  "parent_id": "250062d6-2f2c-4de0-976d-2b982324caaa",
+  "metrics": {
+    "combined_score": 1.3208,
+    "ops_per_sec": 40.799622,
+    "p99_latency_us": 24522.126,
+    "bcoz_max_speedup": 5.0,
+    "bperf_offcpu_ratio": 0.02
+  },
+  "language": "cpp",
+  "saved_at": 1770563773.1058662
+}
