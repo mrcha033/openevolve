@@ -9,7 +9,6 @@
 #   1. Copies the target .cc file from the RocksDB source tree
 #   2. Inserts // EVOLVE-BLOCK-START / // EVOLVE-BLOCK-END markers around the target function(s)
 #   3. Rebuilds RocksDB in release mode (DEBUG_LEVEL=0)
-#   4. Runs a quick baseline benchmark to populate baseline.json
 #
 # Prerequisites:
 #   - RocksDB source tree with db_bench already built (or buildable)
@@ -40,28 +39,20 @@ cd "$ROCKSDB_DIR"
 DEBUG_LEVEL=0 make -j"$NPROC" db_bench 2>&1 | tail -5
 echo ""
 
-# --- Helper: insert EVOLVE-BLOCK markers around a function ---
-# Usage: insert_markers <source_file> <output_file> <function_signature_pattern> [end_pattern]
-#
-# This finds the function definition matching the pattern and wraps it with markers.
-# If end_pattern is not given, it finds the matching closing brace.
-insert_markers() {
-    local src="$1"
-    local out="$2"
-    local start_pattern="$3"
-    local end_pattern="${4:-}"
+# --- Create the Python helper script ---
+HELPER_PY=$(mktemp /tmp/insert_markers_XXXX.py)
+trap "rm -f $HELPER_PY" EXIT
 
-    if [[ ! -f "$src" ]]; then
-        echo "Error: source file not found: $src"
-        return 1
-    fi
+cat > "$HELPER_PY" << 'PYEOF'
+"""Insert EVOLVE-BLOCK markers around a function in a C++ source file."""
+import os, sys, re
 
-    python - "$src" "$out" "$start_pattern" "$end_pattern" << 'PYEOF'
-import sys, re
+src_path = os.environ["MARKER_SRC"]
+out_path = os.environ["MARKER_OUT"]
+start_pat = os.environ["MARKER_START_PAT"]
+end_pat = os.environ.get("MARKER_END_PAT", "")
 
-src_path, out_path, start_pat, end_pat = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-
-with open(src_path, 'r') as f:
+with open(src_path, "r") as f:
     lines = f.readlines()
 
 # Find the function start line
@@ -73,8 +64,8 @@ for i, line in enumerate(lines):
 
 if start_line is None:
     print(f"Warning: pattern '{start_pat}' not found in {src_path}", file=sys.stderr)
-    print(f"Copying file without markers. You will need to add them manually.", file=sys.stderr)
-    with open(out_path, 'w') as f:
+    print("Copying file without markers. You will need to add them manually.", file=sys.stderr)
+    with open(out_path, "w") as f:
         f.writelines(lines)
     sys.exit(0)
 
@@ -95,10 +86,10 @@ else:
     end_line = start_line
     for i in range(start_line, len(lines)):
         for ch in lines[i]:
-            if ch == '{':
+            if ch == "{":
                 depth += 1
                 found_open = True
-            elif ch == '}':
+            elif ch == "}":
                 depth -= 1
                 if found_open and depth == 0:
                     end_line = i
@@ -109,17 +100,33 @@ else:
 # Insert markers
 result = []
 result.extend(lines[:start_line])
-result.append('// EVOLVE-BLOCK-START\n')
-result.extend(lines[start_line:end_line + 1])
-result.append('// EVOLVE-BLOCK-END\n')
-result.extend(lines[end_line + 1:])
+result.append("// EVOLVE-BLOCK-START\n")
+result.extend(lines[start_line : end_line + 1])
+result.append("// EVOLVE-BLOCK-END\n")
+result.extend(lines[end_line + 1 :])
 
-with open(out_path, 'w') as f:
+with open(out_path, "w") as f:
     f.writelines(result)
 
 block_lines = end_line - start_line + 1
 print(f"Inserted markers around lines {start_line + 1}-{end_line + 1} ({block_lines} lines)")
 PYEOF
+
+# --- Helper: insert EVOLVE-BLOCK markers around a function ---
+# Usage: insert_markers <source_file> <output_file> <function_signature_pattern> [end_pattern]
+insert_markers() {
+    local src="$1"
+    local out="$2"
+    local start_pattern="$3"
+    local end_pattern="${4:-}"
+
+    if [[ ! -f "$src" ]]; then
+        echo "Error: source file not found: $src"
+        return 1
+    fi
+
+    MARKER_SRC="$src" MARKER_OUT="$out" MARKER_START_PAT="$start_pattern" MARKER_END_PAT="$end_pattern" \
+        python "$HELPER_PY"
 }
 
 # --- Experiment A: WAL write path ---
