@@ -722,9 +722,7 @@ void CompactionJob::RunSubcompactions() {
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
   for (size_t i = 1; i < compact_->sub_compact_states.size(); i++) {
-// EVOLVE-BLOCK-START
     thread_pool.emplace_back(&CompactionJob::ProcessKeyValueCompaction, this,
-// EVOLVE-BLOCK-END
                              &compact_->sub_compact_states[i]);
   }
 
@@ -1815,6 +1813,7 @@ Status CompactionJob::FinalizeBlobFiles(SubcompactionState* sub_compact,
   return status;
 }
 
+// EVOLVE-BLOCK-START
 void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   TEST_SYNC_POINT("CompactionJob::ProcessKeyValueCompaction:Start");
   assert(sub_compact);
@@ -1897,6 +1896,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   NotifyOnSubcompactionCompleted(sub_compact);
 }
+// EVOLVE-BLOCK-END
 
 void CompactionJob::FinalizeSubcompaction(
     SubcompactionState* sub_compact, Status status,
