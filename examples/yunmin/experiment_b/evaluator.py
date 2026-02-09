@@ -1,13 +1,11 @@
-import importlib.util
 import json
 import os
 import shlex
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
-import subprocess
 
-from openevolve.utils.code_utils import apply_diff
 from openevolve.aiopt.fitness import Baseline, MutationResult, causal_fitness, fast_fitness
 from openevolve.evaluation_result import EvaluationResult
 
@@ -23,6 +21,11 @@ except Exception:
     run_bperf = None
     bperf_context = None
 
+try:
+    from openevolve.aiopt.hw_counter_context import generate_hw_context
+except Exception:
+    generate_hw_context = None
+
 
 EXPERIMENT_NAME = "experiment_b"
 DEFAULT_TARGET_FILE = "db/db_impl/db_impl_write.cc"
@@ -33,15 +36,7 @@ ROOT = Path(__file__).resolve().parent
 BASELINE_FILE = ROOT / "baseline.json"
 
 BUILD_TIMEOUT = 600  # 10 minutes
-
-
-def _load_program(program_path: str):
-    spec = importlib.util.spec_from_file_location("evolve_program", program_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Failed to load program spec.")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+BENCH_TIMEOUT = 300  # 5 minutes
 
 
 def _load_baseline() -> dict:
@@ -88,7 +83,6 @@ def _parse_metrics(stdout: str, metrics_path: Optional[str]) -> dict:
                     except ValueError:
                         pass
         if p99 is None and "P99:" in line:
-            # Prefer explicit P99 from histogram output.
             parts = line.split("P99:")
             if len(parts) > 1:
                 tail = parts[1].strip()
@@ -114,28 +108,21 @@ def _split_command(cmd: str) -> Tuple[str, List[str]]:
 
 
 def evaluate(program_path: str) -> dict:
-    try:
-        module = _load_program(program_path)
-        diff_text = getattr(module, "MUTATION_DIFF", "")
-        if not isinstance(diff_text, str):
-            return {"combined_score": 0.0, "error": "MUTATION_DIFF must be a string."}
-        noop_diff = not diff_text.strip()
-    except Exception as exc:
-        return {"combined_score": 0.0, "error": f"Load failed: {exc}"}
+    """Evaluate a mutated RocksDB .cc file.
 
-    rocksb_path = os.getenv("AI_OPT_ROCKSDB_PATH")
-    if not rocksb_path:
+    program_path: path to the evolved .cc file (with EVOLVE-BLOCK modifications).
+    The evaluator copies it into the RocksDB source tree, rebuilds, benchmarks,
+    and restores the original file.
+    """
+    rocksdb_path = os.getenv("AI_OPT_ROCKSDB_PATH")
+    if not rocksdb_path:
         return {"combined_score": 0.0, "error": "AI_OPT_ROCKSDB_PATH is required."}
 
     baseline = _load_baseline()
     _set_baseline(baseline)
 
-    target_files_env = os.getenv("AI_OPT_TARGET_FILES")
-    if target_files_env:
-        target_files = [Path(rocksb_path) / p.strip() for p in target_files_env.split(",") if p.strip()]
-    else:
-        target_file = os.getenv("AI_OPT_TARGET_FILE", DEFAULT_TARGET_FILE)
-        target_files = [Path(rocksb_path) / target_file]
+    target_file = os.getenv("AI_OPT_TARGET_FILE", DEFAULT_TARGET_FILE)
+    target_path = Path(rocksdb_path) / target_file
 
     build_cmd = os.getenv("AI_OPT_BUILD_CMD")
     bench_cmd = os.getenv("AI_OPT_BENCH_CMD")
@@ -146,11 +133,6 @@ def evaluate(program_path: str) -> dict:
     run_bperf_flag = os.getenv("AI_OPT_RUN_BPERF")
     run_bcoz_enabled = DEFAULT_RUN_BCOZ if run_bcoz_flag is None else run_bcoz_flag == "1"
     run_bperf_enabled = DEFAULT_RUN_BPERF if run_bperf_flag is None else run_bperf_flag == "1"
-
-    if run_bcoz_enabled and run_bcoz is None:
-        return {"combined_score": 0.0, "error": "bcoz_parser unavailable (disable AI_OPT_RUN_BCOZ or install parser)."}
-    if run_bperf_enabled and run_bperf is None:
-        return {"combined_score": 0.0, "error": "bperf_parser unavailable (disable AI_OPT_RUN_BPERF or install parser)."}
 
     bench_bin = os.getenv("AI_OPT_BENCH_BIN")
     bench_args = os.getenv("AI_OPT_BENCH_ARGS")
@@ -166,29 +148,23 @@ def evaluate(program_path: str) -> dict:
     progress_points = os.getenv("AI_OPT_BCOZ_PROGRESS_POINTS")
     progress_list = [p.strip() for p in progress_points.split(",")] if progress_points else []
 
-    applied: list[tuple[Path, str]] = []  # (path, original_text) for rollback
+    original_text = None
 
     try:
-        for path in target_files:
-            if not path.exists():
-                return {"combined_score": 0.0, "error": f"Target file missing: {path}"}
+        if not target_path.exists():
+            return {"combined_score": 0.0, "error": f"Target file missing: {target_path}"}
 
-        if not noop_diff:
-            for path in target_files:
-                original_text = path.read_text(encoding="utf-8")
-                updated = apply_diff(original_text, diff_text)
-                if updated != original_text:
-                    path.write_text(updated, encoding="utf-8")
-                    applied.append((path, original_text))
+        # Save original and copy evolved file into source tree
+        original_text = target_path.read_text(encoding="utf-8")
+        evolved_text = Path(program_path).read_text(encoding="utf-8")
+        target_path.write_text(evolved_text, encoding="utf-8")
 
-            if not applied:
-                return {"combined_score": 0.0, "error": "Diff did not apply to any target file."}
-
+        # Incremental build
         if build_cmd:
             build_result = subprocess.run(
                 build_cmd,
                 shell=True,
-                cwd=rocksb_path,
+                cwd=rocksdb_path,
                 capture_output=True,
                 text=True,
                 timeout=BUILD_TIMEOUT,
@@ -199,12 +175,14 @@ def evaluate(program_path: str) -> dict:
                     "error": build_result.stderr.strip() or "Build failed.",
                 }
 
+        # Run benchmark
         bench_result = subprocess.run(
             bench_cmd,
             shell=True,
-            cwd=rocksb_path,
+            cwd=rocksdb_path,
             capture_output=True,
             text=True,
+            timeout=BENCH_TIMEOUT,
         )
         if bench_result.returncode != 0:
             return {
@@ -213,27 +191,34 @@ def evaluate(program_path: str) -> dict:
             }
 
         metrics = _parse_metrics(bench_result.stdout, metrics_json)
+
+        # Profiler runs (wrapped in try/except for graceful fallback)
         bcoz_result = None
         bperf_result = None
-
         profiler_dir = Path(tempfile.mkdtemp(prefix="aiopt_"))
 
-        if run_bcoz_enabled:
-            bcoz_result = run_bcoz(
-                bin_path,
-                args=args,
-                duration_sec=bcoz_duration,
-                output_dir=profiler_dir,
-                progress_points=progress_list,
-            )
+        if run_bcoz_enabled and run_bcoz is not None:
+            try:
+                bcoz_result = run_bcoz(
+                    bin_path,
+                    args=args,
+                    duration_sec=bcoz_duration,
+                    output_dir=profiler_dir,
+                    progress_points=progress_list,
+                )
+            except Exception:
+                bcoz_result = None
 
-        if run_bperf_enabled:
-            bperf_result = run_bperf(
-                bin_path,
-                args=args,
-                duration_sec=bperf_duration,
-                output_dir=profiler_dir,
-            )
+        if run_bperf_enabled and run_bperf is not None:
+            try:
+                bperf_result = run_bperf(
+                    bin_path,
+                    args=args,
+                    duration_sec=bperf_duration,
+                    output_dir=profiler_dir,
+                )
+            except Exception:
+                bperf_result = None
 
         result = MutationResult(
             mutation_id="iteration",
@@ -251,10 +236,10 @@ def evaluate(program_path: str) -> dict:
             "combined_score": score,
             "ops_per_sec": metrics["ops_per_sec"],
             "p99_latency_us": metrics["p99_latency_us"],
+            "bcoz_max_speedup": Baseline.BCOZ_MAX_SPEEDUP,
+            "bperf_offcpu_ratio": Baseline.OFF_CPU_RATIO,
         }
-        # Always provide feature dimensions even if profilers are disabled.
-        response["bcoz_max_speedup"] = Baseline.BCOZ_MAX_SPEEDUP
-        response["bperf_offcpu_ratio"] = Baseline.OFF_CPU_RATIO
+
         if bcoz_result:
             response["bcoz_max_speedup"] = bcoz_result.max_speedup
             response["bcoz_max_speedup_location"] = bcoz_result.max_speedup_location
@@ -266,6 +251,10 @@ def evaluate(program_path: str) -> dict:
             artifacts["profiler_bcoz"] = bcoz_context(bcoz_result)
         if bperf_result and bperf_context:
             artifacts["profiler_bperf"] = bperf_context(bperf_result)
+        if generate_hw_context:
+            hw_ctx = generate_hw_context(metrics)
+            if hw_ctx:
+                artifacts["profiler_hw_counters"] = hw_ctx
 
         if artifacts:
             return EvaluationResult(metrics=response, artifacts=artifacts)
@@ -275,5 +264,5 @@ def evaluate(program_path: str) -> dict:
         return {"combined_score": 0.0, "error": f"{EXPERIMENT_NAME} failed: {exc}"}
 
     finally:
-        for path, original_text in applied:
-            path.write_text(original_text, encoding="utf-8")
+        if original_text is not None:
+            target_path.write_text(original_text, encoding="utf-8")
