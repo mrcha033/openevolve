@@ -1,5 +1,4 @@
 {
-  "ops_per_sec": 679605.0,
-  "p99_latency_us": 14.6,
-  "off_cpu_ratio": 0
+  "ops_per_sec": 642512.0,
+  "p99_latency_us": 21.62
 }

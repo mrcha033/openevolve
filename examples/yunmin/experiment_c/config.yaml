@@ -3,6 +3,7 @@
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
+max_code_length: 200000
 
 llm:
   api_base: "http://127.0.0.1:8000/v1"  # default; overridden by --api-base
