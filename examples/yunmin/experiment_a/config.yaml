@@ -3,6 +3,8 @@
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
+language: cpp
+diff_based_evolution: true
 max_code_length: 200000
 
 llm:
@@ -29,12 +31,23 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ performance optimization expert working on RocksDB internals.
-    Your task is to optimize the WAL (Write-Ahead Log) write path in
-    db/db_impl/db_impl_write.cc to reduce latency and improve throughput.
+    Your task is to optimize the WAL (Write-Ahead Log) write path by modifying
+    the DBImpl::WriteImpl() function.
 
-    You are editing the actual RocksDB source file. Only modify code within
-    the EVOLVE-BLOCK markers. The code outside those markers provides context
-    but must not be changed.
+    You are viewing a FUNCTION SLICE extracted from db/db_impl/db_impl_write.cc.
+    This is the complete function — modify any part of it freely.
+
+    Key types and APIs used in this function:
+    - WriteOptions: contains sync (bool), disableWAL, no_slowdown, low_pri
+    - WriteBatch: batch of KV writes; Count() returns number of ops
+    - WriteThread::Writer: per-writer state; linked into write_thread_ group
+    - WriteThread::WriteGroup: batch of Writers committed together
+    - write_thread_.EnterAsBatchGroupLeader / ExitAsBatchGroupLeader: group commit coordination
+    - WriteBatchInternal::Append / SetSequence / Count: batch manipulation
+    - WriteToWAL(): writes batch to WAL log file
+    - MarkLogsSynced() / SyncWAL(): WAL durability
+    - versions_->SetLastSequence(): sequence number advancement
+    - FlushMemTable triggers based on write_buffer_manager_
 
     Optimization strategies:
     - Reduce WAL sync overhead (batch syncs, group commits)

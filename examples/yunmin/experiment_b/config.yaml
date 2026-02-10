@@ -3,6 +3,8 @@
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
+language: cpp
+diff_based_evolution: true
 max_code_length: 200000
 
 llm:
@@ -29,12 +31,20 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ concurrency optimization expert working on RocksDB internals.
-    Your task is to reduce mutex contention (DBImpl::mutex_) in the write path
-    of db/db_impl/db_impl_write.cc to improve multi-threaded throughput.
+    Your task is to reduce mutex contention by optimizing the
+    DBImpl::WriteToWAL() function.
 
-    You are editing the actual RocksDB source file. Only modify code within
-    the EVOLVE-BLOCK markers. The code outside those markers provides context
-    but must not be changed.
+    You are viewing a FUNCTION SLICE extracted from db/db_impl/db_impl_write.cc.
+    This is the complete function — modify any part of it freely.
+
+    Key types and APIs used in this function:
+    - WriteBatch: merged batch of KV writes
+    - WriteOptions: contains sync (bool), disableWAL
+    - log::Writer: WAL log file writer; AddRecord() appends to WAL
+    - WriteBatchInternal::Contents(): returns Slice of serialized batch data
+    - alive_log_files_: tracks active WAL files and their sizes
+    - LogFileNumberSize: tracks WAL file number and accumulated size
+    - wal_empty_: flag indicating whether current WAL has data
 
     Optimization strategies:
     - Shrink critical sections holding DBImpl::mutex_

@@ -61,3 +61,44 @@ The evaluator (`evaluator.py`) calculates a **Combined Fitness Score**:
 $$ Fitness = 0.3 \times Throughput + 0.2 \times Latency + 0.3 \times \text{OffCpuReduction} $$
 
 *   **Off-CPU Reduction:** In Track C/D, we heavily reward mutations that lower the `off_cpu_ratio` reported by `bperf`.
+
+## 5. Function-Slicing Design
+
+### Motivation
+RocksDB source files are thousands of lines long. Local models (Qwen, DeepSeek)
+with limited context windows fail to process the full file, and smaller models
+struggle to generate correct SEARCH/REPLACE diffs against such large inputs.
+
+### Architecture
+Instead of giving the LLM the full source file, we **slice** out the target
+function (the EVOLVE-BLOCK region) and present only that to the LLM:
+
+```
+full_source_template.cpp (2959 lines, read-only)
+        |
+        +- lines 1-1652:     context (includes, helpers)  -- not shown to LLM
+        +- lines 1653-1700:  EVOLVE-BLOCK (WriteToWAL)    -- initial_program.cpp
+        +- lines 1701-2959:  context (other functions)     -- not shown to LLM
+```
+
+**Flow:**
+1. `initial_program.cpp` contains ONLY the EVOLVE-BLOCK region (~47 lines)
+2. OpenEvolve sends this slice to the LLM with diff-based evolution enabled
+3. LLM generates SEARCH/REPLACE diffs against the short slice (high reliability)
+4. Evaluator reads the evolved slice + `full_source_template.cpp`
+5. `_reassemble_source()` patches the slice back into the template
+6. Reassembled file is written to the RocksDB tree, compiled, and benchmarked
+
+### Files
+| File | Purpose |
+|------|---------|
+| `initial_program.cpp` | Function slice (~47 lines) -- what the LLM evolves |
+| `full_source_template.cpp` | Full original source -- used by evaluator for reassembly |
+| `initial_program.py` | (Legacy) Alternative MUTATION_DIFF approach |
+| `evaluator.py` | Reassembles slice -> compiles -> benchmarks -> profiles |
+
+### Benefits
+- **Context efficiency:** ~1K tokens instead of ~37K
+- **Diff reliability:** SEARCH/REPLACE on 47 lines vs 2959 lines
+- **Local model compatibility:** Easily fits within smallest context windows
+- **Preserved evolution quality:** Diff-based evolution enables small, targeted mutations

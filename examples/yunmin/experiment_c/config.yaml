@@ -3,6 +3,8 @@
 max_iterations: 50
 checkpoint_interval: 10
 parallel_evaluations: 1
+language: cpp
+diff_based_evolution: true
 max_code_length: 200000
 
 llm:
@@ -29,20 +31,28 @@ evaluator:
 prompt:
   system_message: |
     You are a C++ performance engineer specializing in storage-engine internals.
-    Your task is to reduce compaction latency in RocksDB by optimizing
-    db/compaction/compaction_job.cc.
+    Your task is to reduce compaction latency by optimizing the
+    CompactionJob::ProcessKeyValueCompaction() function.
 
-    You are editing the actual RocksDB source file. Only modify code within
-    the EVOLVE-BLOCK markers. The code outside those markers provides context
-    but must not be changed.
+    You are viewing a FUNCTION SLICE extracted from db/compaction/compaction_job.cc.
+    This is the complete function — modify any part of it freely.
+
+    Key types and APIs used in this function:
+    - SubcompactionState: holds per-subcompaction state (compaction, output, stats)
+    - CompactionIterator (c_iter): merges input from multiple SST files
+    - CompactionRangeDelAggregator: handles range deletions during compaction
+    - CompactionFileOpenFunc / CompactionFileCloseFunc: manage output SST files
+    - sub_compact->compaction: the Compaction descriptor (levels, input files)
+    - sub_compact->AddToOutput(): writes KV pairs to current output file
+    - BlobFileBuilder: handles blob (large value) separation
+    - RecordTick() / SetTickerCount(): statistics tracking
+    - TEST_SYNC_POINT(): testing hooks (must be preserved)
 
     Optimization strategies:
     1. Prefetching/pipelining: overlap reading the next SST data block with
-       processing the current one. Use ReadOptions::readahead_size, explicit
-       Prefetch() calls, or manual double-buffering.
-    2. Amortized locking: batch per-key mutex acquisitions (e.g., accumulate
-       a small buffer of output KVs before acquiring the write lock once).
-    3. Reduce per-key overhead in the inner compaction loop.
+       processing the current one (ReadOptions::readahead_size, Prefetch())
+    2. Amortized locking: batch per-key mutex acquisitions
+    3. Reduce per-key overhead in the inner compaction loop
 
     Constraints:
     - Compaction output must remain byte-identical (correctness first)

@@ -38,6 +38,10 @@ BASELINE_FILE = ROOT / "baseline.json"
 BUILD_TIMEOUT = 600  # 10 minutes
 BENCH_TIMEOUT = 300  # 5 minutes
 
+SLICE_START_MARKER = "// EVOLVE-BLOCK-START"
+SLICE_END_MARKER = "// EVOLVE-BLOCK-END"
+TEMPLATE_FILE = ROOT / "full_source_template.cpp"
+
 
 def _load_baseline() -> dict:
     if BASELINE_FILE.exists():
@@ -107,12 +111,38 @@ def _split_command(cmd: str) -> Tuple[str, List[str]]:
     return parts[0], parts[1:]
 
 
-def evaluate(program_path: str) -> dict:
-    """Evaluate a mutated RocksDB .cc file.
+def _reassemble_source(template: str, evolved_slice: str) -> str:
+    """Replace the EVOLVE-BLOCK region in the template with the evolved slice.
 
-    program_path: path to the evolved .cc file (with EVOLVE-BLOCK modifications).
-    The evaluator copies it into the RocksDB source tree, rebuilds, benchmarks,
-    and restores the original file.
+    The evolved_slice is expected to include EVOLVE-BLOCK-START/END markers.
+    This function finds the corresponding markers in the template and replaces
+    that entire region (markers inclusive) with the evolved slice.
+    """
+    lines = template.split("\n")
+    start_idx = None
+    end_idx = None
+    for i, line in enumerate(lines):
+        if SLICE_START_MARKER in line and start_idx is None:
+            start_idx = i
+        if SLICE_END_MARKER in line:
+            end_idx = i
+    if start_idx is None or end_idx is None:
+        raise RuntimeError(
+            "EVOLVE-BLOCK markers not found in full_source_template.cpp"
+        )
+    before = lines[:start_idx]
+    after = lines[end_idx + 1:]
+    reassembled_lines = before + evolved_slice.rstrip("\n").split("\n") + after
+    return "\n".join(reassembled_lines)
+
+
+def evaluate(program_path: str) -> dict:
+    """Evaluate a function slice of a RocksDB .cc file.
+
+    program_path: path to the evolved function slice (EVOLVE-BLOCK region only).
+    The evaluator reads the full source template, patches in the evolved slice,
+    copies the reassembled file into the RocksDB source tree, rebuilds,
+    benchmarks, and restores the original file.
     """
     rocksdb_path = os.getenv("AI_OPT_ROCKSDB_PATH")
     if not rocksdb_path:
@@ -154,10 +184,13 @@ def evaluate(program_path: str) -> dict:
         if not target_path.exists():
             return {"combined_score": 0.0, "error": f"Target file missing: {target_path}"}
 
-        # Save original and copy evolved file into source tree
+        # Function-slice reassembly: read the evolved slice and patch it
+        # into the full source template before compiling.
         original_text = target_path.read_text(encoding="utf-8")
-        evolved_text = Path(program_path).read_text(encoding="utf-8")
-        target_path.write_text(evolved_text, encoding="utf-8")
+        evolved_slice = Path(program_path).read_text(encoding="utf-8")
+        template_text = TEMPLATE_FILE.read_text(encoding="utf-8")
+        reassembled = _reassemble_source(template_text, evolved_slice)
+        target_path.write_text(reassembled, encoding="utf-8")
 
         # Incremental build
         if build_cmd:
