@@ -1,0 +1,16 @@
+{
+  "id": "52aadada-7ae6-4fa5-b084-e8017da7614b",
+  "generation": 3,
+  "iteration": 17,
+  "current_iteration": 20,
+  "metrics": {
+    "combined_score": 1.3534,
+    "ops_per_sec": 871449.0,
+    "p99_latency_us": 9.61,
+    "bcoz_max_speedup": 15.0,
+    "bperf_offcpu_ratio": 0.0
+  },
+  "language": "python",
+  "timestamp": 1770483392.3058705,
+  "saved_at": 1770483732.3181925
+}

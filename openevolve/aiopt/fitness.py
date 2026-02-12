@@ -134,6 +134,7 @@ def fast_fitness(result: MutationResult) -> float:
 
 def fitness_summary(result: MutationResult, fitness: float) -> str:
     """Generate human-readable fitness summary."""
+    safe_latency_us = max(result.p99_latency_us, 1.0)
     lines = [
         f"Mutation: {result.mutation_id}",
         f"Valid: {result.is_valid}",
@@ -143,7 +144,7 @@ def fitness_summary(result: MutationResult, fitness: float) -> str:
         f"  Throughput: {result.throughput_ops_sec:.0f} ops/sec "
         f"({result.throughput_ops_sec / Baseline.THROUGHPUT_OPS_SEC:.2%} of baseline)",
         f"  P99 Latency: {result.p99_latency_us:.1f} µs "
-        f"({Baseline.P99_LATENCY_US / result.p99_latency_us:.2%} improvement)",
+        f"({Baseline.P99_LATENCY_US / safe_latency_us:.2%} improvement)",
     ]
     
     if result.bcoz:

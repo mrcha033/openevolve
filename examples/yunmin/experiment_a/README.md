@@ -27,6 +27,8 @@ Use the shared runner script `../run_track.sh` from the parent directory.
 
 ### Prerequisites
 *   **Env:** `AI_OPT_ROCKSDB_PATH` must point to your RocksDB source.
+*   **Build Command** e.g. `export AI_OPT_BUILD_CMD='DEBUG_LEVEL=0 DISABLE_WARNING_AS_ERROR=1 make -j96 db_bench'`
+*   **Bench Command** e.g. `export AI_OPT_BENCH_CMD='./db_bench --benchmarks=fillrandom --num=1000000 --threads=8 --histogram'`
 *   **Profiler:** For Tracks C/D, `bcoz` and `bperf` must be installed.
 *   **LLM:** `vllm` or `ollama` running locally, or `OPENAI_API_KEY` set.
 
