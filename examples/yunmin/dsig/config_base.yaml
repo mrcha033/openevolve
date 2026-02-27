@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# DSig Experiment — OpenEvolve Base Configuration
+#
+# This is the TEMPLATE config. The runner script (run_experiment.py) patches
+# the LLM endpoint and profiler settings per condition at runtime.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# --- LLM Configuration (overridden per condition) ---
+llm:
+  # Condition 1 & 2: local model (e.g., Qwen2.5-Coder-32B via vLLM)
+  # Condition 3 & 4: SOTA model (Claude/GPT-4o via API)
+  api_base: "http://localhost:8000/v1"   # placeholder — runner overrides
+  model: "local-model"                    # placeholder — runner overrides
+  api_key: "not-needed"                   # placeholder — runner overrides
+  temperature: 0.8
+  max_tokens: 8192
+
+# --- Language ---
+file_suffix: ".c"
+
+# --- Evolution Parameters ---
+max_iterations: 100
+
+# --- Database / Population ---
+database:
+  population_size: 40
+  num_islands: 3
+  migration_interval: 15
+  feature_dimensions:
+    - "performance"
+    - "code_complexity"
+
+# --- Evaluator ---
+evaluator:
+  timeout: 180            # seconds per evaluation
+  enable_artifacts: true
+  cascade_evaluation: false
+  use_llm_feedback: false  # we provide profiler data instead
+
+# --- Prompt Configuration ---
+prompt:
+  system_message: |
+    You are a performance optimization expert specializing in low-level C code
+    and cryptographic implementations.
+
+    You will be given C code that performs Ed25519 digital signatures and a
+    performance measurement (operations per second). Your task is to modify
+    the code to MAXIMIZE throughput (ops/sec).
+
+    Target hardware:
+      - 2x Intel Xeon Gold 6542Y (Emerald Rapids)
+        96 cores (48 physical), AVX-512, AMX-BF16/INT8
+      - 251 GB DDR5, 2 NUMA nodes
+      - No GPU available for this workload
+
+    Constraints:
+      1. Signatures MUST be valid Ed25519 (verified by evaluator)
+      2. Must compile with: gcc -O2 -lsodium -lpthread -lm
+      3. Must print a single float (ops/sec) as the LAST line of stdout
+      4. May use: OpenMP, pthreads, SIMD intrinsics, custom implementations,
+         precomputation, batching, memory-mapped I/O, any valid C technique
+      5. May restructure the entire program
+      6. May add new functions, data structures, lookup tables
+      7. May use processor-specific features (AVX-512, etc.)
+
+    Output ONLY the complete C source code. No explanations, no markdown fences.
+
+  # How many top-performing programs to include in the prompt context
+  num_top_programs: 2
+  num_diverse_programs: 1
